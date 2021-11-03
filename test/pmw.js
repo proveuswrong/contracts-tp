@@ -8,12 +8,15 @@ const ONE_ETH = BigNumber.from(BigInt(1e18));
 const TWO_ETH = BigNumber.from(2).mul(BigNumber.from(BigInt(1e18)));
 const FIVE_ETH = BigNumber.from(5).mul(BigNumber.from(BigInt(1e18)));
 const TEN_ETH = BigNumber.from(10).mul(BigNumber.from(BigInt(1e18)));
+let TIMELOCK_PERIOD;
 
 describe("Prove Me Wrong", () => {
   before("Deploying", async () => {
     [deployer, claimant, supporter, challenger, innocentBystander] = await ethers.getSigners();
     ({ arbitrator, pmw } = await deployContracts(deployer));
+    TIMELOCK_PERIOD = await pmw.connect(deployer).CLAIM_WITHDRAWAL_TIMELOCK();
   });
+
   describe("Default", () => {
     it("Should create new claim", async () => {
       const args = [EXAMPLE_IPFS_CIDv1, 0];
@@ -39,15 +42,16 @@ describe("Prove Me Wrong", () => {
       // const oldBalance = await deployer.getBalance();
 
       await expect(pmw.connect(claimant).unfund(...args))
+        .to.emit(pmw, "TimelockStarted")
+        .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, TEN_ETH);
+
+      await expect(pmw.connect(claimant).unfund(...args)).to.be.revertedWith("You need to wait for timelock.");
+
+      await ethers.provider.send("evm_increaseTime", [TIMELOCK_PERIOD]);
+
+      await expect(pmw.connect(claimant).unfund(...args))
         .to.emit(pmw, "BalanceUpdate")
         .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, 1, TEN_ETH);
-
-      await expect(pmw.connect(supporter).unfund(...args))
-        .to.emit(pmw, "BalanceUpdate")
-        .withArgs(EXAMPLE_IPFS_CIDv1, supporter.address, 1, FIVE_ETH);
-
-      // const newBalance = await requester.getBalance();
-      // expect(newBalance).to.equal(oldBalance.add(ONE_ETH), "Bad unfund");
     });
   });
 });
