@@ -96,7 +96,7 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     }
   }
 
-  function challange(string calldata claimID) public payable {
+  function challenge(string calldata claimID) public payable {
     Claim storage claim = claims[claimID];
     ArbitratorSetting storage setting = settings[claim.settingPointer];
 
@@ -150,7 +150,7 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     }
   }
 
-  function challangeFee(string calldata _claimID) public view returns (uint256 arbitrationFee) {
+  function challengeFee(string calldata _claimID) public view returns (uint256 arbitrationFee) {
     Claim storage claim = claims[_claimID];
     ArbitratorSetting storage setting = settings[claim.settingPointer];
 

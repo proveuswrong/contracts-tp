@@ -12,7 +12,7 @@ let TIMELOCK_PERIOD;
 
 describe("Prove Me Wrong", () => {
   before("Deploying", async () => {
-    [deployer, claimant, supporter, challanger, innocentBystander] = await ethers.getSigners();
+    [deployer, claimant, supporter, challenger, innocentBystander] = await ethers.getSigners();
     ({ arbitrator, pmw } = await deployContracts(deployer));
     TIMELOCK_PERIOD = await pmw.connect(deployer).CLAIM_WITHDRAWAL_TIMELOCK();
   });
@@ -52,12 +52,12 @@ describe("Prove Me Wrong", () => {
         .withArgs(EXAMPLE_IPFS_CIDv1, supporter.address, 0, TEN_ETH);
     });
 
-    it("Should challange a claim", async () => {
+    it("Should challenge a claim", async () => {
       const args = [EXAMPLE_IPFS_CIDv1];
 
-      const CHALLANGE_FEE = await pmw.connect(deployer).challangeFee(...args);
+      const challenge_FEE = await pmw.connect(deployer).challengeFee(...args);
 
-      await expect(pmw.connect(challanger).challange(...args, { value: CHALLANGE_FEE }));
+      await expect(pmw.connect(challenger).challenge(...args, { value: challenge_FEE }));
     });
 
     it("Should not unfund a claim prior timelock", async () => {
