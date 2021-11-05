@@ -96,21 +96,16 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     }
   }
 
-  function challengeClaim(string calldata claimID) public payable {
+  function challange(string calldata claimID) public payable {
     Claim storage claim = claims[claimID];
-    require(claim.bountyAmount > 0, "Claim is not live.");
     ArbitratorSetting storage setting = settings[claim.settingPointer];
-
-    uint256 arbitrationCost = setting.arbitrator.arbitrationCost(setting.arbitratorExtraData);
-    require(msg.value >= arbitrationCost, "Not enough funds for this challenge.");
 
     uint256 disputeID = setting.arbitrator.createDispute{value: msg.value}(NUMBER_OF_RULING_OPTIONS, setting.arbitratorExtraData);
     externalIDtoLocalID[disputeID] = claimID;
 
     claim.lastDispute = DisputeData({id: disputeID, challanger: payable(msg.sender), metaevidenceID: metaevidenceCounter - 1});
 
-    uint256 metaEvidenceID = 0; // TODO
-    emit Dispute(IArbitrator(setting.arbitrator), disputeID, metaEvidenceID, disputeID);
+    emit Dispute(IArbitrator(setting.arbitrator), disputeID, metaevidenceCounter - 1, disputeID);
 
     emit Challange(claimID, msg.sender);
   }
@@ -128,7 +123,7 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     emit NewSetting(uint24(settings.length - 1), _arbitrator, _arbitratorExtraData);
   }
 
-  function initializeClaim(string calldata _claimID, uint8 _settingPointer) public payable {
+  function initialize(string calldata _claimID, uint8 _settingPointer) public payable {
     Claim storage claim = claims[_claimID];
 
     require(claim.bountyAmount < 1000, "You can't change arbitrator settings of a live claim.");
@@ -153,5 +148,12 @@ contract ProveMeWrong is IArbitrable, IEvidence {
       emit BalanceUpdate(claimID, claim.lastDispute.challanger, BalanceUpdateType.Sweep, claim.bountyAmount);
       claim.lastDispute.challanger.send(bounty);
     }
+  }
+
+  function challangeFee(string calldata _claimID) public view returns (uint256 arbitrationFee) {
+    Claim storage claim = claims[_claimID];
+    ArbitratorSetting storage setting = settings[claim.settingPointer];
+
+    arbitrationFee = setting.arbitrator.arbitrationCost(setting.arbitratorExtraData);
   }
 }

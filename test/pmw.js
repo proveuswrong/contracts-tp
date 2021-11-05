@@ -12,40 +12,66 @@ let TIMELOCK_PERIOD;
 
 describe("Prove Me Wrong", () => {
   before("Deploying", async () => {
-    [deployer, claimant, supporter, challenger, innocentBystander] = await ethers.getSigners();
+    [deployer, claimant, supporter, challanger, innocentBystander] = await ethers.getSigners();
     ({ arbitrator, pmw } = await deployContracts(deployer));
     TIMELOCK_PERIOD = await pmw.connect(deployer).CLAIM_WITHDRAWAL_TIMELOCK();
   });
 
   describe("Default", () => {
-    it("Should create new claim", async () => {
+    // Skipping this in favor of the test case below as this is not useful for observing gas usages nor test functionality.
+    it.skip("Should initialize a new claim", async () => {
       const args = [EXAMPLE_IPFS_CIDv1, 0];
 
-      await expect(pmw.connect(deployer).initializeClaim(...args))
+      await expect(pmw.connect(deployer).initialize(...args))
         .to.emit(pmw, "NewClaim")
         .withArgs(...args.slice(0, 2));
+    });
+
+    // Main gas optimization should be here.
+    it("Should initialize an fund a new claim", async () => {
+      const args = [EXAMPLE_IPFS_CIDv1, 0];
+
+      await expect(pmw.connect(claimant).initialize(...args, { value: TEN_ETH }))
+        .to.emit(pmw, "NewClaim")
+        .withArgs(...args.slice(0, 2))
+        .to.emit(pmw, "BalanceUpdate")
+        .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, 0, TEN_ETH);
+    });
+
+    it("Should not initialize an existing claim", async () => {
+      const args = [EXAMPLE_IPFS_CIDv1, 0];
+
+      await expect(pmw.connect(deployer).initialize(...args)).to.be.revertedWith("You can't change arbitrator settings of a live claim.");
     });
 
     it("Should fund a claim", async () => {
       const args = [EXAMPLE_IPFS_CIDv1];
 
-      await expect(pmw.connect(claimant).fund(...args, { value: TEN_ETH }))
+      await expect(pmw.connect(supporter).fund(...args, { value: TEN_ETH }))
         .to.emit(pmw, "BalanceUpdate")
-        .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, 0, TEN_ETH);
-
-      await expect(pmw.connect(supporter).fund(...args, { value: FIVE_ETH }));
+        .withArgs(EXAMPLE_IPFS_CIDv1, supporter.address, 0, TEN_ETH);
     });
 
-    it("Should unfund a claim", async () => {
+    it("Should challange a claim", async () => {
       const args = [EXAMPLE_IPFS_CIDv1];
 
-      // const oldBalance = await deployer.getBalance();
+      const CHALLANGE_FEE = await pmw.connect(deployer).challangeFee(...args);
+
+      await expect(pmw.connect(challanger).challange(...args, { value: CHALLANGE_FEE }));
+    });
+
+    it("Should not unfund a claim prior timelock", async () => {
+      const args = [EXAMPLE_IPFS_CIDv1];
 
       await expect(pmw.connect(claimant).unfund(...args))
         .to.emit(pmw, "TimelockStarted")
         .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, TEN_ETH);
 
       await expect(pmw.connect(claimant).unfund(...args)).to.be.revertedWith("You need to wait for timelock.");
+    });
+
+    it("Should unfund a claim", async () => {
+      const args = [EXAMPLE_IPFS_CIDv1];
 
       await ethers.provider.send("evm_increaseTime", [TIMELOCK_PERIOD]);
 
