@@ -14,10 +14,10 @@ contract Arbitrator is IArbitrator {
 
   struct Dispute {
     IArbitrable arbitrated;
+    uint256 appealDeadline;
     uint256 numberOfRulingOptions;
     uint256 ruling;
     DisputeStatus status;
-    uint256 appealDeadline;
   }
 
   modifier onlyGovernor() {

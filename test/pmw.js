@@ -10,6 +10,8 @@ const FIVE_ETH = BigNumber.from(5).mul(BigNumber.from(BigInt(1e18)));
 const TEN_ETH = BigNumber.from(10).mul(BigNumber.from(BigInt(1e18)));
 let TIMELOCK_PERIOD;
 
+const RULING_OUTCOMES = Object.freeze({ ChallengeFailed: 0, ProvedWrong: 1 });
+
 describe("Prove Me Wrong", () => {
   before("Deploying", async () => {
     [deployer, claimant, supporter, challenger, innocentBystander] = await ethers.getSigners();
@@ -50,14 +52,40 @@ describe("Prove Me Wrong", () => {
       await expect(pmw.connect(supporter).fund(...args, { value: TEN_ETH }))
         .to.emit(pmw, "BalanceUpdate")
         .withArgs(EXAMPLE_IPFS_CIDv1, supporter.address, 0, TEN_ETH);
+
+      await expect(pmw.connect(supporter).fund(...args, { value: TEN_ETH }))
+        .to.emit(pmw, "BalanceUpdate")
+        .withArgs(EXAMPLE_IPFS_CIDv1, supporter.address, 0, TEN_ETH);
+    });
+
+    it("For reference: create dispute gas cost.", async () => {
+      await arbitrator.connect(challenger).createDispute(...[1, "0x1212121212121212"], { value: BigNumber.from("1000000000000000000") });
+      await arbitrator.connect(challenger).createDispute(...[1, "0x1212121212121212"], { value: BigNumber.from("1000000000000000000") });
+      await arbitrator.connect(challenger).createDispute(...[1, "0x1212121212121212"], { value: BigNumber.from("1000000000000000000") });
     });
 
     it("Should challenge a claim", async () => {
       const args = [EXAMPLE_IPFS_CIDv1];
 
-      const challenge_FEE = await pmw.connect(deployer).challengeFee(...args);
+      const challengeFee = await pmw.connect(deployer).challengeFee(...args);
 
-      await expect(pmw.connect(challenger).challenge(...args, { value: challenge_FEE }));
+      await expect(pmw.connect(challenger).challenge(...args, { value: challengeFee }));
+    });
+
+    it("Should submit evidence to a dispute", async () => {
+      const args = [EXAMPLE_IPFS_CIDv1, EXAMPLE_IPFS_CIDv1];
+
+      await expect(pmw.connect(challenger).submitEvidence(...args));
+      await expect(pmw.connect(challenger).submitEvidence(...args));
+    });
+
+    it("Should appeal a dispute", async () => {
+      await arbitrator.connect(deployer).giveRuling(0, RULING_OUTCOMES.ChallengeFailed, 100000000);
+
+      const appealFee = await pmw.connect(deployer).appealFee(0, "0x00");
+      await expect(pmw.connect(challenger).appeal(EXAMPLE_IPFS_CIDv1, 0, { value: appealFee }))
+        .to.emit(arbitrator, "AppealDecision")
+        .withArgs(0, pmw.address);
     });
 
     it("Should not unfund a claim prior timelock", async () => {
@@ -66,6 +94,10 @@ describe("Prove Me Wrong", () => {
       await expect(pmw.connect(claimant).unfund(...args))
         .to.emit(pmw, "TimelockStarted")
         .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, TEN_ETH);
+
+      await expect(pmw.connect(supporter).unfund(...args))
+        .to.emit(pmw, "TimelockStarted")
+        .withArgs(EXAMPLE_IPFS_CIDv1, supporter.address, BigNumber.from(2).mul(TEN_ETH));
 
       await expect(pmw.connect(claimant).unfund(...args)).to.be.revertedWith("You need to wait for timelock.");
     });

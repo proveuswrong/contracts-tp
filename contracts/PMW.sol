@@ -34,24 +34,24 @@ contract ProveMeWrong is IArbitrable, IEvidence {
 
   struct DisputeData {
     uint256 id;
-    address payable challanger;
-    uint16 metaevidenceID;
+    address payable challenger;
+    uint96 metaevidenceID;
   }
 
   struct Contribution {
-    uint256 amount;
-    uint256 withdrawalPermittedAt;
+    uint128 amount;
+    uint128 withdrawalPermittedAt;
   }
 
   struct Claim {
-    uint256 bountyAmount;
-    uint8 settingPointer;
-    DisputeData lastDispute;
+    uint248 bountyAmount;
+    uint16 settingPointer;
     mapping(address => Contribution) contributions;
   }
 
   uint16 metaevidenceCounter = 0;
   mapping(string => Claim) claims;
+  mapping(uint256 => DisputeData) disputes;
   ArbitratorSetting[] settings;
   mapping(uint256 => string) externalIDtoLocalID;
 
@@ -67,8 +67,8 @@ contract ProveMeWrong is IArbitrable, IEvidence {
   function fund(string calldata claimID) public payable {
     Claim storage claim = claims[claimID];
 
-    claim.contributions[msg.sender].amount += msg.value;
-    claim.bountyAmount += msg.value;
+    claim.contributions[msg.sender].amount += uint128(msg.value);
+    claim.bountyAmount += uint128(msg.value);
 
     // console.log("%s contributed %s weis", msg.sender, msg.value);
 
@@ -78,7 +78,7 @@ contract ProveMeWrong is IArbitrable, IEvidence {
   function unfund(string calldata claimID) public {
     Claim storage claim = claims[claimID];
     if (claim.contributions[msg.sender].withdrawalPermittedAt == 0) {
-      claim.contributions[msg.sender].withdrawalPermittedAt = block.timestamp + CLAIM_WITHDRAWAL_TIMELOCK;
+      claim.contributions[msg.sender].withdrawalPermittedAt = uint128(block.timestamp + CLAIM_WITHDRAWAL_TIMELOCK);
       emit TimelockStarted(claimID, msg.sender, claim.contributions[msg.sender].amount);
     } else {
       require(claim.bountyAmount > 0, "Can't withdraw funds from a claim that has no funds.");
@@ -96,25 +96,32 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     }
   }
 
-  function challenge(string calldata claimID) public payable {
-    Claim storage claim = claims[claimID];
+  function challenge(string calldata _claimID) public payable {
+    Claim storage claim = claims[_claimID];
     ArbitratorSetting storage setting = settings[claim.settingPointer];
 
     uint256 disputeID = setting.arbitrator.createDispute{value: msg.value}(NUMBER_OF_RULING_OPTIONS, setting.arbitratorExtraData);
-    externalIDtoLocalID[disputeID] = claimID;
+    externalIDtoLocalID[disputeID] = _claimID;
 
-    claim.lastDispute = DisputeData({id: disputeID, challanger: payable(msg.sender), metaevidenceID: metaevidenceCounter - 1});
+    disputes[disputeID] = DisputeData({id: disputeID, challenger: payable(msg.sender), metaevidenceID: metaevidenceCounter - 1});
 
-    emit Dispute(IArbitrator(setting.arbitrator), disputeID, metaevidenceCounter - 1, disputeID);
+    emit Dispute(IArbitrator(setting.arbitrator), disputeID, metaevidenceCounter - 1, uint256(keccak256(bytes(_claimID))));
 
-    emit Challange(claimID, msg.sender);
+    emit Challange(_claimID, msg.sender);
+  }
+
+  function appeal(string calldata _claimID, uint256 _disputeID) public payable {
+    Claim storage claim = claims[_claimID];
+    ArbitratorSetting storage setting = settings[claim.settingPointer];
+
+    setting.arbitrator.appeal{value: msg.value}(_disputeID, setting.arbitratorExtraData);
   }
 
   function submitEvidence(string calldata _claimID, string calldata _evidenceURI) public {
     Claim storage claim = claims[_claimID];
     ArbitratorSetting storage setting = settings[claim.settingPointer];
 
-    emit Evidence(setting.arbitrator, claim.lastDispute.id, msg.sender, _evidenceURI);
+    emit Evidence(setting.arbitrator, uint256(keccak256(bytes(_claimID))), msg.sender, _evidenceURI);
   }
 
   function createNewArbitratorSettings(IArbitrator _arbitrator, bytes calldata _arbitratorExtraData) public payable {
@@ -145,8 +152,8 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     if (RulingOutcomes(_ruling) == RulingOutcomes.ProvedWrong) {
       uint256 bounty = claim.bountyAmount;
       claim.bountyAmount = 0;
-      emit BalanceUpdate(claimID, claim.lastDispute.challanger, BalanceUpdateType.Sweep, claim.bountyAmount);
-      claim.lastDispute.challanger.send(bounty);
+      emit BalanceUpdate(claimID, disputes[_disputeID].challenger, BalanceUpdateType.Sweep, claim.bountyAmount);
+      disputes[_disputeID].challenger.send(bounty);
     }
   }
 
@@ -155,5 +162,12 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     ArbitratorSetting storage setting = settings[claim.settingPointer];
 
     arbitrationFee = setting.arbitrator.arbitrationCost(setting.arbitratorExtraData);
+  }
+
+  function appealFee(string calldata _claimID, uint256 _disputeID) public view returns (uint256 arbitrationFee) {
+    Claim storage claim = claims[_claimID];
+    ArbitratorSetting storage setting = settings[claim.settingPointer];
+
+    arbitrationFee = setting.arbitrator.appealCost(_disputeID, setting.arbitratorExtraData);
   }
 }
