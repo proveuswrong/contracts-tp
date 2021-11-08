@@ -35,18 +35,13 @@ contract ProveMeWrong is IArbitrable, IEvidence {
   struct DisputeData {
     uint256 id;
     address payable challenger;
-    uint96 metaevidenceID;
-  }
-
-  struct Contribution {
-    uint128 amount;
-    uint128 withdrawalPermittedAt;
   }
 
   struct Claim {
+    address payable owner;
+    uint128 withdrawalPermittedAt;
     uint248 bountyAmount;
     uint16 settingPointer;
-    mapping(address => Contribution) contributions;
   }
 
   uint16 metaevidenceCounter = 0;
@@ -64,10 +59,22 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     emit MetaEvidence(metaevidenceCounter++, "0x00");
   }
 
+  function initialize(string calldata _claimID, uint8 _settingPointer) public payable {
+    Claim storage claim = claims[_claimID];
+
+    require(claim.bountyAmount < 1000, "You can't change arbitrator settings of a live claim.");
+    claim.settingPointer = _settingPointer;
+    claim.owner = payable(msg.sender);
+
+    if (msg.value > 0) fund(_claimID);
+
+    emit NewClaim(_claimID, _settingPointer);
+  }
+
   function fund(string calldata claimID) public payable {
     Claim storage claim = claims[claimID];
+    require(msg.sender == claim.owner, "Only claimant can fund a claim.");
 
-    claim.contributions[msg.sender].amount += uint128(msg.value);
     claim.bountyAmount += uint128(msg.value);
 
     // console.log("%s contributed %s weis", msg.sender, msg.value);
@@ -77,18 +84,15 @@ contract ProveMeWrong is IArbitrable, IEvidence {
 
   function unfund(string calldata claimID) public {
     Claim storage claim = claims[claimID];
-    if (claim.contributions[msg.sender].withdrawalPermittedAt == 0) {
-      claim.contributions[msg.sender].withdrawalPermittedAt = uint128(block.timestamp + CLAIM_WITHDRAWAL_TIMELOCK);
-      emit TimelockStarted(claimID, msg.sender, claim.contributions[msg.sender].amount);
+    if (claim.withdrawalPermittedAt == 0) {
+      claim.withdrawalPermittedAt = uint128(block.timestamp + CLAIM_WITHDRAWAL_TIMELOCK);
+      emit TimelockStarted(claimID, msg.sender, claim.bountyAmount);
     } else {
       require(claim.bountyAmount > 0, "Can't withdraw funds from a claim that has no funds.");
-      require(
-        claim.contributions[msg.sender].withdrawalPermittedAt != 0 && claim.contributions[msg.sender].withdrawalPermittedAt <= block.timestamp,
-        "You need to wait for timelock."
-      );
+      require(claim.withdrawalPermittedAt != 0 && claim.withdrawalPermittedAt <= block.timestamp, "You need to wait for timelock.");
       require(claim.bountyAmount > 0, "Claim is not live.");
 
-      uint256 withdrawal = uint256(claim.contributions[msg.sender].amount);
+      uint256 withdrawal = uint256(claim.bountyAmount);
       payable(msg.sender).transfer(withdrawal);
 
       // console.log("Trying to send %s weis to %s", withdrawal, msg.sender);
@@ -103,7 +107,7 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     uint256 disputeID = setting.arbitrator.createDispute{value: msg.value}(NUMBER_OF_RULING_OPTIONS, setting.arbitratorExtraData);
     externalIDtoLocalID[disputeID] = _claimID;
 
-    disputes[disputeID] = DisputeData({id: disputeID, challenger: payable(msg.sender), metaevidenceID: metaevidenceCounter - 1});
+    disputes[disputeID] = DisputeData({id: disputeID, challenger: payable(msg.sender)});
 
     emit Dispute(IArbitrator(setting.arbitrator), disputeID, metaevidenceCounter - 1, uint256(keccak256(bytes(_claimID))));
 
@@ -128,17 +132,6 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     settings.push(ArbitratorSetting({arbitrator: _arbitrator, arbitratorExtraData: _arbitratorExtraData}));
 
     emit NewSetting(uint24(settings.length - 1), _arbitrator, _arbitratorExtraData);
-  }
-
-  function initialize(string calldata _claimID, uint8 _settingPointer) public payable {
-    Claim storage claim = claims[_claimID];
-
-    require(claim.bountyAmount < 1000, "You can't change arbitrator settings of a live claim.");
-    claims[_claimID].settingPointer = _settingPointer;
-
-    if (msg.value > 0) fund(_claimID);
-
-    emit NewClaim(_claimID, _settingPointer);
   }
 
   function rule(uint256 _disputeID, uint256 _ruling) external override {

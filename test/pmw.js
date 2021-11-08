@@ -49,13 +49,13 @@ describe("Prove Me Wrong", () => {
     it("Should fund a claim", async () => {
       const args = [EXAMPLE_IPFS_CIDv1];
 
-      await expect(pmw.connect(supporter).fund(...args, { value: TEN_ETH }))
+      await expect(pmw.connect(claimant).fund(...args, { value: TEN_ETH }))
         .to.emit(pmw, "BalanceUpdate")
-        .withArgs(EXAMPLE_IPFS_CIDv1, supporter.address, 0, TEN_ETH);
-
-      await expect(pmw.connect(supporter).fund(...args, { value: TEN_ETH }))
-        .to.emit(pmw, "BalanceUpdate")
-        .withArgs(EXAMPLE_IPFS_CIDv1, supporter.address, 0, TEN_ETH);
+        .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, 0, TEN_ETH);
+      //
+      // await expect(pmw.connect(supporter).fund(...args, { value: TEN_ETH }))
+      //   .to.emit(pmw, "BalanceUpdate")
+      //   .withArgs(EXAMPLE_IPFS_CIDv1, supporter.address, 0, TEN_ETH);
     });
 
     it("For reference: create dispute gas cost.", async () => {
@@ -93,11 +93,7 @@ describe("Prove Me Wrong", () => {
 
       await expect(pmw.connect(claimant).unfund(...args))
         .to.emit(pmw, "TimelockStarted")
-        .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, TEN_ETH);
-
-      await expect(pmw.connect(supporter).unfund(...args))
-        .to.emit(pmw, "TimelockStarted")
-        .withArgs(EXAMPLE_IPFS_CIDv1, supporter.address, BigNumber.from(2).mul(TEN_ETH));
+        .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, BigNumber.from(2).mul(TEN_ETH));
 
       await expect(pmw.connect(claimant).unfund(...args)).to.be.revertedWith("You need to wait for timelock.");
     });
@@ -109,7 +105,7 @@ describe("Prove Me Wrong", () => {
 
       await expect(pmw.connect(claimant).unfund(...args))
         .to.emit(pmw, "BalanceUpdate")
-        .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, 1, TEN_ETH);
+        .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, 1, BigNumber.from(2).mul(TEN_ETH));
     });
   });
 });
