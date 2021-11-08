@@ -8,7 +8,7 @@ import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
 
 contract ProveMeWrong is IArbitrable, IEvidence {
   uint8 constant NUMBER_OF_RULING_OPTIONS = 2;
-  uint24 constant NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = 32; // To compress bounty amount to uint48, saving 32 bits.
+  uint24 constant NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = 32; // To compress bounty amount to uint48, saving 32 bits. Right shift to compress and left shift to decompress. This compression will make beneficiary to lose some amount between 0 to 4 gwei.
   uint24 public immutable CLAIM_WITHDRAWAL_TIMELOCK; // To prevent claimants to act fast and escape punishment.
 
   event BalanceUpdate(string indexed claimID, uint256 newTotal);
@@ -37,9 +37,9 @@ contract ProveMeWrong is IArbitrable, IEvidence {
   // 256 bits
   struct Claim {
     address payable owner; // 160 bit
+    uint16 settingPointer;
     uint32 withdrawalPermittedAt;
     uint48 bountyAmount;
-    uint16 settingPointer;
   }
 
   uint16 metaevidenceCounter = 0;
