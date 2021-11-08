@@ -17,7 +17,7 @@ contract ProveMeWrong is IArbitrable, IEvidence {
   event NewSetting(uint256 index, IArbitrator indexed arbitrator, bytes arbitratorExtraData);
   event NewClaim(string indexed claimID, uint256 settingPointer);
   event Challenge(string indexed claimID, address challanger);
-  event TimelockStarted(string indexed claimID, address indexed funder, uint256 funds);
+  event TimelockStarted(string indexed claimID);
 
   enum RulingOutcomes {
     ChallengeFailed,
@@ -86,7 +86,7 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     if (claim.withdrawalPermittedAt == 0) {
       // Start withdrawal process.
       claim.withdrawalPermittedAt = uint32(block.timestamp + CLAIM_WITHDRAWAL_TIMELOCK);
-      emit TimelockStarted(_claimID, msg.sender, uint80(claim.bountyAmount) << 32);
+      emit TimelockStarted(_claimID);
     } else {
       // Withdraw.
       require(claim.withdrawalPermittedAt != 0 && claim.withdrawalPermittedAt <= block.timestamp, "You need to wait for timelock.");
