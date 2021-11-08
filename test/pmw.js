@@ -17,6 +17,8 @@ describe("Prove Me Wrong", () => {
     [deployer, claimant, supporter, challenger, innocentBystander] = await ethers.getSigners();
     ({ arbitrator, pmw } = await deployContracts(deployer));
     TIMELOCK_PERIOD = await pmw.connect(deployer).CLAIM_WITHDRAWAL_TIMELOCK();
+
+    await pmw.connect(deployer).createNewArbitratorSettings(arbitrator.address, "0x00", "METAEVIDENCE");
   });
 
   describe("Default", () => {
@@ -41,7 +43,7 @@ describe("Prove Me Wrong", () => {
     });
 
     it("Should create an arbitrator setting", async () => {
-      const args = [arbitrator.address, "0x00"];
+      const args = [arbitrator.address, "0x11", "0x22"];
 
       await expect(pmw.connect(innocentBystander).createNewArbitratorSettings(...args))
         .to.emit(pmw, "NewSetting")
@@ -54,10 +56,10 @@ describe("Prove Me Wrong", () => {
       await expect(pmw.connect(deployer).initialize(...args)).to.be.revertedWith("You can't change arbitrator settings of a live claim.");
     });
 
-    it("Should fund a claim", async () => {
+    it("Should be able to increase bounty of a claim", async () => {
       const args = [EXAMPLE_IPFS_CIDv1];
 
-      await expect(pmw.connect(claimant).fund(...args, { value: TEN_ETH })).to.emit(pmw, "BalanceUpdate");
+      await expect(pmw.connect(claimant).increaseBounty(...args, { value: TEN_ETH })).to.emit(pmw, "BalanceUpdate");
       // .withArgs(EXAMPLE_IPFS_CIDv1, BigNumber.from(2).mul(TEN_ETH));
     });
 
@@ -91,21 +93,21 @@ describe("Prove Me Wrong", () => {
         .withArgs(0, pmw.address);
     });
 
-    it("Should not unfund a claim prior timelock", async () => {
+    it("Should not let withdraw a claim prior timelock", async () => {
       const args = [EXAMPLE_IPFS_CIDv1];
 
-      await expect(pmw.connect(claimant).unfund(...args)).to.emit(pmw, "TimelockStarted");
+      await expect(pmw.connect(claimant).withdraw(...args)).to.emit(pmw, "TimelockStarted");
       // .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, BigNumber.from(2).mul(TEN_ETH));
 
-      await expect(pmw.connect(claimant).unfund(...args)).to.be.revertedWith("You need to wait for timelock.");
+      await expect(pmw.connect(claimant).withdraw(...args)).to.be.revertedWith("You need to wait for timelock.");
     });
 
-    it("Should unfund a claim", async () => {
+    it("Should let withdraw a claim", async () => {
       const args = [EXAMPLE_IPFS_CIDv1];
 
       await ethers.provider.send("evm_increaseTime", [TIMELOCK_PERIOD]);
 
-      await expect(pmw.connect(claimant).unfund(...args))
+      await expect(pmw.connect(claimant).withdraw(...args))
         .to.emit(pmw, "Withdrew")
         .withArgs(EXAMPLE_IPFS_CIDv1);
     });
@@ -123,7 +125,7 @@ async function deployContracts(deployer) {
 
   const PMW = await ethers.getContractFactory("ProveMeWrong", deployer);
   // const pmw = await PMW.deploy({ arbitrator: arbitrator.address, arbitratorExtraData: "0x00" }, SHARE_DENOMINATOR, MIN_FUND_INCREASE_PERCENT, MIN_BOUNTY);
-  const pmw = await PMW.deploy({ arbitrator: arbitrator.address, arbitratorExtraData: "0x00" });
+  const pmw = await PMW.deploy();
 
   await pmw.deployed();
 

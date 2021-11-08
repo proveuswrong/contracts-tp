@@ -9,7 +9,7 @@ import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
 contract ProveMeWrong is IArbitrable, IEvidence {
   uint8 constant NUMBER_OF_RULING_OPTIONS = 2;
   uint24 constant NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = 32; // To compress bounty amount to uint48, saving 32 bits. Right shift to compress and left shift to decompress. This compression will make beneficiary to lose some amount between 0 to 4 gwei.
-  uint24 public immutable CLAIM_WITHDRAWAL_TIMELOCK; // To prevent claimants to act fast and escape punishment.
+  uint24 public constant CLAIM_WITHDRAWAL_TIMELOCK = 2 weeks; // To prevent claimants to act fast and escape punishment.
 
   event BalanceUpdate(string indexed claimID, uint256 newTotal);
   event Debunked(string indexed claimID);
@@ -42,20 +42,10 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     uint48 bountyAmount;
   }
 
-  uint16 metaevidenceCounter = 0;
   mapping(string => Claim) claims;
   mapping(uint256 => DisputeData) disputes;
   ArbitratorSetting[] settings;
-  mapping(uint256 => string) externalIDtoLocalID;
-
-  constructor(ArbitratorSetting memory setting) {
-    CLAIM_WITHDRAWAL_TIMELOCK = 2 weeks;
-
-    settings.push(setting);
-
-    emit NewSetting(settings.length - 1, setting.arbitrator, setting.arbitratorExtraData);
-    emit MetaEvidence(metaevidenceCounter++, "0x00");
-  }
+  mapping(uint256 => string) externalIDtoLocalID; // Maps arbitrator dispute ID to claim ID.
 
   function initialize(string calldata _claimID, uint8 _settingPointer) public payable {
     Claim storage claim = claims[_claimID];
@@ -69,16 +59,16 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     emit NewClaim(_claimID);
   }
 
-  function fund(string calldata _claimID) public payable {
+  function increaseBounty(string calldata _claimID) public payable {
     Claim storage claim = claims[_claimID];
-    require(msg.sender == claim.owner, "Only claimant can fund a claim.");
+    require(msg.sender == claim.owner, "Only claimant can increase bounty of a claim.");
 
     claim.bountyAmount += uint48(msg.value >> NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
 
     emit BalanceUpdate(_claimID, uint256(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
   }
 
-  function unfund(string calldata _claimID) public {
+  function withdraw(string calldata _claimID) public {
     Claim storage claim = claims[_claimID];
     require(msg.sender == claim.owner, "Only claimant can withdraw a claim.");
 
@@ -88,11 +78,12 @@ contract ProveMeWrong is IArbitrable, IEvidence {
       emit TimelockStarted(_claimID);
     } else {
       // Withdraw.
-      require(claim.withdrawalPermittedAt != 0 && claim.withdrawalPermittedAt <= block.timestamp, "You need to wait for timelock.");
+      require(claim.withdrawalPermittedAt <= block.timestamp, "You need to wait for timelock.");
 
       uint256 withdrawal = uint80(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
       claim.bountyAmount = 0;
       payable(msg.sender).transfer(withdrawal);
+
       emit Withdrew(_claimID);
     }
   }
@@ -106,8 +97,7 @@ contract ProveMeWrong is IArbitrable, IEvidence {
 
     disputes[disputeID] = DisputeData({id: disputeID, challenger: payable(msg.sender)});
 
-    emit Dispute(IArbitrator(setting.arbitrator), disputeID, metaevidenceCounter - 1, uint256(keccak256(bytes(_claimID))));
-
+    emit Dispute(IArbitrator(setting.arbitrator), disputeID, claim.settingPointer, uint256(keccak256(bytes(_claimID))));
     emit Challenge(_claimID, msg.sender);
   }
 
@@ -125,10 +115,15 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     emit Evidence(setting.arbitrator, uint256(keccak256(bytes(_claimID))), msg.sender, _evidenceURI);
   }
 
-  function createNewArbitratorSettings(IArbitrator _arbitrator, bytes calldata _arbitratorExtraData) public payable {
+  function createNewArbitratorSettings(
+    IArbitrator _arbitrator,
+    bytes calldata _arbitratorExtraData,
+    string memory _metaevidenceURI
+  ) public payable {
     settings.push(ArbitratorSetting({arbitrator: _arbitrator, arbitratorExtraData: _arbitratorExtraData}));
 
     emit NewSetting(settings.length - 1, _arbitrator, _arbitratorExtraData);
+    emit MetaEvidence(settings.length - 1, _metaevidenceURI);
   }
 
   function rule(uint256 _disputeID, uint256 _ruling) external override {
