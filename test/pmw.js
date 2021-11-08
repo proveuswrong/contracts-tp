@@ -35,7 +35,7 @@ describe("Prove Me Wrong", () => {
 
       await expect(pmw.connect(claimant).initialize(...args, { value: TEN_ETH }))
         .to.emit(pmw, "NewClaim")
-        .withArgs(...args.slice(0, 2))
+        .withArgs(...args.slice(0, 1))
         .to.emit(pmw, "BalanceUpdate");
       // .withArgs(EXAMPLE_IPFS_CIDv1, TEN_ETH);
     });

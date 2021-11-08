@@ -15,7 +15,7 @@ contract ProveMeWrong is IArbitrable, IEvidence {
   event Debunked(string indexed claimID);
   event Withdrew(string indexed claimID);
   event NewSetting(uint256 index, IArbitrator indexed arbitrator, bytes arbitratorExtraData);
-  event NewClaim(string indexed claimID, uint256 settingPointer);
+  event NewClaim(string indexed claimID);
   event Challenge(string indexed claimID, address challanger);
   event TimelockStarted(string indexed claimID);
 
@@ -59,15 +59,14 @@ contract ProveMeWrong is IArbitrable, IEvidence {
 
   function initialize(string calldata _claimID, uint8 _settingPointer) public payable {
     Claim storage claim = claims[_claimID];
-
     require(claim.bountyAmount == 0, "You can't change arbitrator settings of a live claim.");
+
     claim.settingPointer = _settingPointer;
     claim.owner = payable(msg.sender);
-
     claim.bountyAmount += uint48(msg.value >> NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
-    emit BalanceUpdate(_claimID, uint256(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
 
-    emit NewClaim(_claimID, _settingPointer);
+    emit BalanceUpdate(_claimID, uint256(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
+    emit NewClaim(_claimID);
   }
 
   function fund(string calldata _claimID) public payable {
@@ -92,6 +91,7 @@ contract ProveMeWrong is IArbitrable, IEvidence {
       require(claim.withdrawalPermittedAt != 0 && claim.withdrawalPermittedAt <= block.timestamp, "You need to wait for timelock.");
 
       uint256 withdrawal = uint80(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
+      claim.bountyAmount = 0;
       payable(msg.sender).transfer(withdrawal);
       emit Withdrew(_claimID);
     }
