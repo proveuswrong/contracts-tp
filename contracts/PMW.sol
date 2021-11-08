@@ -8,23 +8,20 @@ import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
 
 contract ProveMeWrong is IArbitrable, IEvidence {
   uint8 constant NUMBER_OF_RULING_OPTIONS = 2;
+  uint24 constant NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = 32; // To compress bounty amount to uint48, saving 32 bits.
   uint24 public immutable CLAIM_WITHDRAWAL_TIMELOCK; // To prevent claimants to act fast and escape punishment.
 
-  event BalanceUpdate(string indexed claimID, address indexed actor, BalanceUpdateType indexed bat, uint256 balanceDelta);
-  event NewSetting(uint24 index, IArbitrator indexed arbitrator, bytes arbitratorExtraData);
-  event NewClaim(string indexed claimID, uint32 settingPointer);
-  event Challange(string indexed claimID, address challanger);
+  event BalanceUpdate(string indexed claimID, uint256 newTotal);
+  event Debunked(string indexed claimID);
+  event Withdrew(string indexed claimID);
+  event NewSetting(uint256 index, IArbitrator indexed arbitrator, bytes arbitratorExtraData);
+  event NewClaim(string indexed claimID, uint256 settingPointer);
+  event Challenge(string indexed claimID, address challanger);
   event TimelockStarted(string indexed claimID, address indexed funder, uint256 funds);
 
   enum RulingOutcomes {
     ChallengeFailed,
-    ProvedWrong
-  }
-
-  enum BalanceUpdateType {
-    Fund,
-    Unfund,
-    Sweep
+    Debunked
   }
 
   struct ArbitratorSetting {
@@ -37,10 +34,11 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     address payable challenger;
   }
 
+  // 256 bits
   struct Claim {
-    address payable owner;
-    uint128 withdrawalPermittedAt;
-    uint248 bountyAmount;
+    address payable owner; // 160 bit
+    uint32 withdrawalPermittedAt;
+    uint48 bountyAmount;
     uint16 settingPointer;
   }
 
@@ -55,48 +53,47 @@ contract ProveMeWrong is IArbitrable, IEvidence {
 
     settings.push(setting);
 
-    emit NewSetting(uint24(settings.length - 1), setting.arbitrator, setting.arbitratorExtraData);
+    emit NewSetting(settings.length - 1, setting.arbitrator, setting.arbitratorExtraData);
     emit MetaEvidence(metaevidenceCounter++, "0x00");
   }
 
   function initialize(string calldata _claimID, uint8 _settingPointer) public payable {
     Claim storage claim = claims[_claimID];
 
-    require(claim.bountyAmount < 1000, "You can't change arbitrator settings of a live claim.");
+    require(claim.bountyAmount == 0, "You can't change arbitrator settings of a live claim.");
     claim.settingPointer = _settingPointer;
     claim.owner = payable(msg.sender);
 
-    if (msg.value > 0) fund(_claimID);
+    claim.bountyAmount += uint48(msg.value >> NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
+    emit BalanceUpdate(_claimID, uint256(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
 
     emit NewClaim(_claimID, _settingPointer);
   }
 
-  function fund(string calldata claimID) public payable {
-    Claim storage claim = claims[claimID];
+  function fund(string calldata _claimID) public payable {
+    Claim storage claim = claims[_claimID];
     require(msg.sender == claim.owner, "Only claimant can fund a claim.");
 
-    claim.bountyAmount += uint128(msg.value);
+    claim.bountyAmount += uint48(msg.value >> NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
 
-    // console.log("%s contributed %s weis", msg.sender, msg.value);
-
-    emit BalanceUpdate(claimID, msg.sender, BalanceUpdateType.Fund, msg.value);
+    emit BalanceUpdate(_claimID, uint256(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
   }
 
-  function unfund(string calldata claimID) public {
-    Claim storage claim = claims[claimID];
+  function unfund(string calldata _claimID) public {
+    Claim storage claim = claims[_claimID];
+    require(msg.sender == claim.owner, "Only claimant can withdraw a claim.");
+
     if (claim.withdrawalPermittedAt == 0) {
-      claim.withdrawalPermittedAt = uint128(block.timestamp + CLAIM_WITHDRAWAL_TIMELOCK);
-      emit TimelockStarted(claimID, msg.sender, claim.bountyAmount);
+      // Start withdrawal process.
+      claim.withdrawalPermittedAt = uint32(block.timestamp + CLAIM_WITHDRAWAL_TIMELOCK);
+      emit TimelockStarted(_claimID, msg.sender, uint80(claim.bountyAmount) << 32);
     } else {
-      require(claim.bountyAmount > 0, "Can't withdraw funds from a claim that has no funds.");
+      // Withdraw.
       require(claim.withdrawalPermittedAt != 0 && claim.withdrawalPermittedAt <= block.timestamp, "You need to wait for timelock.");
-      require(claim.bountyAmount > 0, "Claim is not live.");
 
-      uint256 withdrawal = uint256(claim.bountyAmount);
+      uint256 withdrawal = uint80(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
       payable(msg.sender).transfer(withdrawal);
-
-      // console.log("Trying to send %s weis to %s", withdrawal, msg.sender);
-      emit BalanceUpdate(claimID, msg.sender, BalanceUpdateType.Unfund, withdrawal);
+      emit Withdrew(_claimID);
     }
   }
 
@@ -111,7 +108,7 @@ contract ProveMeWrong is IArbitrable, IEvidence {
 
     emit Dispute(IArbitrator(setting.arbitrator), disputeID, metaevidenceCounter - 1, uint256(keccak256(bytes(_claimID))));
 
-    emit Challange(_claimID, msg.sender);
+    emit Challenge(_claimID, msg.sender);
   }
 
   function appeal(string calldata _claimID, uint256 _disputeID) public payable {
@@ -131,7 +128,7 @@ contract ProveMeWrong is IArbitrable, IEvidence {
   function createNewArbitratorSettings(IArbitrator _arbitrator, bytes calldata _arbitratorExtraData) public payable {
     settings.push(ArbitratorSetting({arbitrator: _arbitrator, arbitratorExtraData: _arbitratorExtraData}));
 
-    emit NewSetting(uint24(settings.length - 1), _arbitrator, _arbitratorExtraData);
+    emit NewSetting(settings.length - 1, _arbitrator, _arbitratorExtraData);
   }
 
   function rule(uint256 _disputeID, uint256 _ruling) external override {
@@ -142,10 +139,10 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     require(IArbitrator(msg.sender) == setting.arbitrator);
     emit Ruling(IArbitrator(msg.sender), _disputeID, _ruling);
 
-    if (RulingOutcomes(_ruling) == RulingOutcomes.ProvedWrong) {
+    if (RulingOutcomes(_ruling) == RulingOutcomes.Debunked) {
       uint256 bounty = claim.bountyAmount;
       claim.bountyAmount = 0;
-      emit BalanceUpdate(claimID, disputes[_disputeID].challenger, BalanceUpdateType.Sweep, claim.bountyAmount);
+      emit Debunked(claimID);
       disputes[_disputeID].challenger.send(bounty);
     }
   }

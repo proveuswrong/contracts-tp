@@ -30,14 +30,22 @@ describe("Prove Me Wrong", () => {
     });
 
     // Main gas optimization should be here.
-    it("Should initialize an fund a new claim", async () => {
+    it("Should initialize and fund a new claim", async () => {
       const args = [EXAMPLE_IPFS_CIDv1, 0];
 
       await expect(pmw.connect(claimant).initialize(...args, { value: TEN_ETH }))
         .to.emit(pmw, "NewClaim")
         .withArgs(...args.slice(0, 2))
-        .to.emit(pmw, "BalanceUpdate")
-        .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, 0, TEN_ETH);
+        .to.emit(pmw, "BalanceUpdate");
+      // .withArgs(EXAMPLE_IPFS_CIDv1, TEN_ETH);
+    });
+
+    it("Should create an arbitrator setting", async () => {
+      const args = [arbitrator.address, "0x00"];
+
+      await expect(pmw.connect(innocentBystander).createNewArbitratorSettings(...args))
+        .to.emit(pmw, "NewSetting")
+        .withArgs(1, ...args.slice(0, 2));
     });
 
     it("Should not initialize an existing claim", async () => {
@@ -49,13 +57,8 @@ describe("Prove Me Wrong", () => {
     it("Should fund a claim", async () => {
       const args = [EXAMPLE_IPFS_CIDv1];
 
-      await expect(pmw.connect(claimant).fund(...args, { value: TEN_ETH }))
-        .to.emit(pmw, "BalanceUpdate")
-        .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, 0, TEN_ETH);
-      //
-      // await expect(pmw.connect(supporter).fund(...args, { value: TEN_ETH }))
-      //   .to.emit(pmw, "BalanceUpdate")
-      //   .withArgs(EXAMPLE_IPFS_CIDv1, supporter.address, 0, TEN_ETH);
+      await expect(pmw.connect(claimant).fund(...args, { value: TEN_ETH })).to.emit(pmw, "BalanceUpdate");
+      // .withArgs(EXAMPLE_IPFS_CIDv1, BigNumber.from(2).mul(TEN_ETH));
     });
 
     it("For reference: create dispute gas cost.", async () => {
@@ -91,9 +94,8 @@ describe("Prove Me Wrong", () => {
     it("Should not unfund a claim prior timelock", async () => {
       const args = [EXAMPLE_IPFS_CIDv1];
 
-      await expect(pmw.connect(claimant).unfund(...args))
-        .to.emit(pmw, "TimelockStarted")
-        .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, BigNumber.from(2).mul(TEN_ETH));
+      await expect(pmw.connect(claimant).unfund(...args)).to.emit(pmw, "TimelockStarted");
+      // .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, BigNumber.from(2).mul(TEN_ETH));
 
       await expect(pmw.connect(claimant).unfund(...args)).to.be.revertedWith("You need to wait for timelock.");
     });
@@ -104,8 +106,8 @@ describe("Prove Me Wrong", () => {
       await ethers.provider.send("evm_increaseTime", [TIMELOCK_PERIOD]);
 
       await expect(pmw.connect(claimant).unfund(...args))
-        .to.emit(pmw, "BalanceUpdate")
-        .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, 1, BigNumber.from(2).mul(TEN_ETH));
+        .to.emit(pmw, "Withdrew")
+        .withArgs(EXAMPLE_IPFS_CIDv1);
     });
   });
 });
