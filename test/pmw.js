@@ -96,7 +96,7 @@ describe("Prove Me Wrong", () => {
     it("Should not let withdraw a claim prior timelock", async () => {
       const args = [EXAMPLE_IPFS_CIDv1];
 
-      await expect(pmw.connect(claimant).withdraw(...args)).to.emit(pmw, "TimelockStarted");
+      await expect(pmw.connect(claimant).initiateWithdrawal(...args)).to.emit(pmw, "TimelockStarted");
       // .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, BigNumber.from(2).mul(TEN_ETH));
 
       await expect(pmw.connect(claimant).withdraw(...args)).to.be.revertedWith("You need to wait for timelock.");

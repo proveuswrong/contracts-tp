@@ -68,25 +68,26 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     emit BalanceUpdate(_claimID, uint256(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
   }
 
+  function initiateWithdrawal(string calldata _claimID) public {
+    Claim storage claim = claims[_claimID];
+    require(msg.sender == claim.owner, "Only claimant can withdraw a claim.");
+    require(claim.withdrawalPermittedAt == 0, "Withdrawal already initiated.");
+
+    claim.withdrawalPermittedAt = uint32(block.timestamp + CLAIM_WITHDRAWAL_TIMELOCK);
+    emit TimelockStarted(_claimID);
+  }
+
   function withdraw(string calldata _claimID) public {
     Claim storage claim = claims[_claimID];
     require(msg.sender == claim.owner, "Only claimant can withdraw a claim.");
+    require(claim.withdrawalPermittedAt != 0, "You need to initiate withdrawal first.");
+    require(claim.withdrawalPermittedAt <= block.timestamp, "You need to wait for timelock.");
 
-    if (claim.withdrawalPermittedAt == 0) {
-      // Start withdrawal process.
-      claim.withdrawalPermittedAt = uint32(block.timestamp + CLAIM_WITHDRAWAL_TIMELOCK);
-      emit TimelockStarted(_claimID);
-    } else {
-      // Withdraw.
-      require(claim.withdrawalPermittedAt <= block.timestamp, "You need to wait for timelock.");
-
-      uint256 withdrawal = uint80(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
-      claim.bountyAmount = 0;
-      claim.withdrawalPermittedAt = 0;
-      payable(msg.sender).transfer(withdrawal);
-
-      emit Withdrew(_claimID);
-    }
+    uint256 withdrawal = uint80(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
+    claim.bountyAmount = 0;
+    claim.withdrawalPermittedAt = 0;
+    payable(msg.sender).transfer(withdrawal);
+    emit Withdrew(_claimID);
   }
 
   function challenge(string calldata _claimID) public payable {
