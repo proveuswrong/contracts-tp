@@ -18,7 +18,7 @@ describe("Prove Me Wrong", () => {
     ({ arbitrator, pmw } = await deployContracts(deployer));
     TIMELOCK_PERIOD = await pmw.connect(deployer).CLAIM_WITHDRAWAL_TIMELOCK();
 
-    await pmw.connect(deployer).createNewArbitratorSettings(arbitrator.address, "0x00", "METAEVIDENCE");
+    // await pmw.connect(deployer).createNewArbitratorSettings(arbitrator.address, "0x00", "METAEVIDENCE");
   });
 
   describe("Default", () => {
@@ -33,7 +33,7 @@ describe("Prove Me Wrong", () => {
 
     // Main gas optimization should be here.
     it("Should initialize and fund a new claim", async () => {
-      const args = [EXAMPLE_IPFS_CIDv1, 0];
+      const args = [EXAMPLE_IPFS_CIDv1];
 
       await expect(pmw.connect(claimant).initialize(...args, { value: TEN_ETH }))
         .to.emit(pmw, "NewClaim")
@@ -42,7 +42,7 @@ describe("Prove Me Wrong", () => {
       // .withArgs(EXAMPLE_IPFS_CIDv1, TEN_ETH);
     });
 
-    it("Should create an arbitrator setting", async () => {
+    it.skip("Should create an arbitrator setting", async () => {
       const args = [arbitrator.address, "0x11", "0x22"];
 
       await expect(pmw.connect(innocentBystander).createNewArbitratorSettings(...args))
@@ -51,9 +51,9 @@ describe("Prove Me Wrong", () => {
     });
 
     it("Should not initialize an existing claim", async () => {
-      const args = [EXAMPLE_IPFS_CIDv1, 0];
+      const args = [EXAMPLE_IPFS_CIDv1];
 
-      await expect(pmw.connect(deployer).initialize(...args)).to.be.revertedWith("You can't change arbitrator settings of a live claim.");
+      await expect(pmw.connect(deployer).initialize(...args)).to.be.revertedWith("You can't initialize a live claim.");
     });
 
     it("Should be able to increase bounty of a claim", async () => {
@@ -111,6 +111,16 @@ describe("Prove Me Wrong", () => {
         .to.emit(pmw, "Withdrew")
         .withArgs(EXAMPLE_IPFS_CIDv1);
     });
+
+    it("Should let to initialize the same claim again, after withdrawal", async () => {
+      const args = [EXAMPLE_IPFS_CIDv1];
+
+      await expect(pmw.connect(claimant).initialize(...args, { value: TEN_ETH }))
+        .to.emit(pmw, "NewClaim")
+        .withArgs(...args.slice(0, 1))
+        .to.emit(pmw, "BalanceUpdate");
+      // .withArgs(EXAMPLE_IPFS_CIDv1, TEN_ETH);
+    });
   });
 });
 
@@ -125,7 +135,7 @@ async function deployContracts(deployer) {
 
   const PMW = await ethers.getContractFactory("ProveMeWrong", deployer);
   // const pmw = await PMW.deploy({ arbitrator: arbitrator.address, arbitratorExtraData: "0x00" }, SHARE_DENOMINATOR, MIN_FUND_INCREASE_PERCENT, MIN_BOUNTY);
-  const pmw = await PMW.deploy();
+  const pmw = await PMW.deploy(arbitrator.address, "0x00");
 
   await pmw.deployed();
 
