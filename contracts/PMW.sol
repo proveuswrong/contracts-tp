@@ -82,6 +82,7 @@ contract ProveMeWrong is IArbitrable, IEvidence {
 
       uint256 withdrawal = uint80(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
       claim.bountyAmount = 0;
+      claim.withdrawalPermittedAt = 0;
       payable(msg.sender).transfer(withdrawal);
 
       emit Withdrew(_claimID);
