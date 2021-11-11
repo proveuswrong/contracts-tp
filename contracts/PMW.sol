@@ -120,7 +120,7 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     emit Ruling(IArbitrator(msg.sender), _disputeID, _ruling);
 
     if (RulingOutcomes(_ruling) == RulingOutcomes.Debunked) {
-      uint256 bounty = claim.bountyAmount;
+      uint256 bounty = uint88(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
       claim.bountyAmount = 0;
       emit Debunked(claimID);
       disputes[_disputeID].challenger.send(bounty);
