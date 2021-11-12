@@ -7,17 +7,15 @@ import "@kleros/erc-792/contracts/IArbitrator.sol";
 import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
 
 contract ProveMeWrong is IArbitrable, IEvidence {
-  uint8 constant NUMBER_OF_RULING_OPTIONS = 2;
-  uint24 constant NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = 40; // To compress bounty amount to uint48, saving 32 bits. Right shift to compress and left shift to decompress. This compression will make beneficiary to lose some amount between 0 to 4 gwei.
-  uint24 public constant CLAIM_WITHDRAWAL_TIMELOCK = 2 weeks; // To prevent claimants to act fast and escape punishment.
+  uint256 public constant NUMBER_OF_RULING_OPTIONS = 2;
+  uint256 public constant NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = 40; // To compress bounty amount to gain space in struct. Lossy compression.
 
-  event BalanceUpdate(string indexed claimID, uint256 newTotal);
-  event Debunked(string indexed claimID);
-  event Withdrew(string indexed claimID);
-  event NewSetting(uint256 index, IArbitrator indexed arbitrator, bytes arbitratorExtraData);
-  event NewClaim(string indexed claimID);
-  event Challenge(string indexed claimID, address challanger);
-  event TimelockStarted(string indexed claimID);
+  event NewClaim(string indexed claimID, uint256 claimAddress);
+  event Debunked(uint256 claimAddress);
+  event Withdrew(uint256 claimAddress);
+  event BalanceUpdate(uint256 claimAddress, uint256 newTotal);
+  event TimelockStarted(uint256 claimAddress);
+  event Challenge(uint256 indexed claimID, address challanger);
 
   enum RulingOutcomes {
     ChallengeFailed,
@@ -26,95 +24,120 @@ contract ProveMeWrong is IArbitrable, IEvidence {
 
   // TODO: Implement  crowdfunded appeals
   struct DisputeData {
-    uint256 id;
     address payable challenger;
   }
 
-  // 256 bits - TODO: Try to reuse same storage slot for another claim, after the original claim frees the space.
+  // Claims are not addressed with their identifiers, to enable reusing a storage slot.
   struct Claim {
     address payable owner; // 160 bit
     uint16 freeSpace;
-    uint32 withdrawalPermittedAt;
+    uint32 withdrawalPermittedAt; // Overflows on in year 2106
     uint48 bountyAmount;
   }
 
   IArbitrator public immutable arbitrator;
+  uint256 public immutable claimWithdrawalTimelock; // To prevent claimants to act fast and escape punishment.
   bytes public arbitratorExtraData;
 
-  mapping(string => Claim) claims;
+  mapping(uint256 => Claim) public claimStorage;
   mapping(uint256 => DisputeData) disputes;
-  mapping(uint256 => string) externalIDtoLocalID; // Maps arbitrator dispute ID to claim ID.
 
-  constructor(IArbitrator _arbitrator, bytes memory _arbitratorExtraData) {
+  mapping(uint256 => uint256) externalIDtoLocalID; // Maps arbitrator dispute ID to claim ID.
+
+  constructor(
+    IArbitrator _arbitrator,
+    bytes memory _arbitratorExtraData,
+    string memory _metaevidenceIpfsUri,
+    uint256 _claimWithdrawalTimelock
+  ) {
     arbitrator = _arbitrator;
     arbitratorExtraData = _arbitratorExtraData;
+    claimWithdrawalTimelock = _claimWithdrawalTimelock;
+
+    emit MetaEvidence(0, _metaevidenceIpfsUri);
   }
 
-  function initialize(string calldata _claimID) public payable {
-    Claim storage claim = claims[_claimID];
+  function initialize(string calldata _claimID, uint256 _searchPointer) external payable {
+    Claim storage claim;
+    do {
+      claim = claimStorage[_searchPointer++];
+    } while (claim.bountyAmount != 0);
+    // console.log("Found empty slot at %s", _searchPointer - 1);
+
     require(claim.bountyAmount == 0, "You can't initialize a live claim.");
-    require(msg.value > 0, "You can't initialize a claim without putting a bounty.");
 
     claim.owner = payable(msg.sender);
     claim.bountyAmount += uint48(msg.value >> NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
 
-    emit BalanceUpdate(_claimID, uint256(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
-    emit NewClaim(_claimID);
+    require(claim.bountyAmount > 0, "You can't initialize a claim without putting a bounty.");
+
+    uint256 claimAddress = _searchPointer - 1;
+    emit NewClaim(_claimID, claimAddress);
+    emit BalanceUpdate(claimAddress, uint256(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
   }
 
-  function increaseBounty(string calldata _claimID) public payable {
-    Claim storage claim = claims[_claimID];
+  function increaseBounty(uint256 _claimAddress) public payable {
+    Claim storage claim = claimStorage[_claimAddress];
     require(msg.sender == claim.owner, "Only claimant can increase bounty of a claim.");
 
     claim.bountyAmount += uint48(msg.value >> NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
 
-    emit BalanceUpdate(_claimID, uint256(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
+    emit BalanceUpdate(_claimAddress, uint256(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
   }
 
-  function initiateWithdrawal(string calldata _claimID) public {
-    Claim storage claim = claims[_claimID];
+  function initiateWithdrawal(uint256 _claimAddress) public {
+    Claim storage claim = claimStorage[_claimAddress];
     require(msg.sender == claim.owner, "Only claimant can withdraw a claim.");
-    require(claim.withdrawalPermittedAt == 0, "Withdrawal already initiated.");
+    require(claim.withdrawalPermittedAt == 0, "Withdrawal already initiated or there is a challenge.");
 
-    claim.withdrawalPermittedAt = uint32(block.timestamp + CLAIM_WITHDRAWAL_TIMELOCK);
-    emit TimelockStarted(_claimID);
+    claim.withdrawalPermittedAt = uint32(block.timestamp + claimWithdrawalTimelock);
+    emit TimelockStarted(_claimAddress);
   }
 
-  function withdraw(string calldata _claimID) public {
-    Claim storage claim = claims[_claimID];
+  function withdraw(uint256 _claimAddress) external {
+    Claim storage claim = claimStorage[_claimAddress];
+
     require(msg.sender == claim.owner, "Only claimant can withdraw a claim.");
     require(claim.withdrawalPermittedAt != 0, "You need to initiate withdrawal first.");
     require(claim.withdrawalPermittedAt <= block.timestamp, "You need to wait for timelock.");
 
     uint256 withdrawal = uint88(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
-    claim.bountyAmount = 0;
-    claim.withdrawalPermittedAt = 0;
+    claim.bountyAmount = 0; // This is critical to reset.
+    claim.withdrawalPermittedAt = 0; // This too, otherwise new claim inside the same slot can withdraw instantly.
+    // We could reset claim.owner as well, this refunds 4K gas. But not resetting it here and let it to be reset
+    // during initialization of a claim using a previously used storage slot provides 17K gas refund. So net gain 13K.
     payable(msg.sender).transfer(withdrawal);
-    emit Withdrew(_claimID);
+    emit Withdrew(_claimAddress);
   }
 
-  function challenge(string calldata _claimID) public payable {
+  // TODO Crowdfunding
+  function challenge(uint256 _claimAddress) public payable {
+    Claim storage claim = claimStorage[_claimAddress];
+    claim.withdrawalPermittedAt = type(uint32).max;
+
+    require(claim.bountyAmount > 0, "Nothing to challenge.");
+
     uint256 disputeID = arbitrator.createDispute{value: msg.value}(NUMBER_OF_RULING_OPTIONS, arbitratorExtraData);
-    externalIDtoLocalID[disputeID] = _claimID;
+    externalIDtoLocalID[disputeID] = _claimAddress;
 
-    disputes[disputeID] = DisputeData({id: disputeID, challenger: payable(msg.sender)});
+    disputes[disputeID] = DisputeData({challenger: payable(msg.sender)});
 
-    uint256 metaevidenceID = 0;
-    emit Dispute(arbitrator, disputeID, metaevidenceID, uint256(keccak256(bytes(_claimID))));
-    emit Challenge(_claimID, msg.sender);
+    emit Dispute(arbitrator, disputeID, 0, uint256(keccak256(abi.encode(_claimAddress, claim.owner)))); // TODO Evidence Group ID
+    emit Challenge(_claimAddress, msg.sender);
   }
 
   function appeal(string calldata _claimID, uint256 _disputeID) public payable {
     arbitrator.appeal{value: msg.value}(_disputeID, arbitratorExtraData);
   }
 
+  //TODO Evidence group ID
   function submitEvidence(string calldata _claimID, string calldata _evidenceURI) public {
     emit Evidence(arbitrator, uint256(keccak256(bytes(_claimID))), msg.sender, _evidenceURI);
   }
 
   function rule(uint256 _disputeID, uint256 _ruling) external override {
-    string memory claimID = externalIDtoLocalID[_disputeID];
-    Claim storage claim = claims[claimID];
+    uint256 claimAddress = externalIDtoLocalID[_disputeID];
+    Claim storage claim = claimStorage[claimAddress];
 
     require(IArbitrator(msg.sender) == arbitrator);
     emit Ruling(IArbitrator(msg.sender), _disputeID, _ruling);
@@ -122,16 +145,33 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     if (RulingOutcomes(_ruling) == RulingOutcomes.Debunked) {
       uint256 bounty = uint88(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
       claim.bountyAmount = 0;
-      emit Debunked(claimID);
+      claim.withdrawalPermittedAt = 0;
+
+      emit Debunked(claimAddress);
       disputes[_disputeID].challenger.send(bounty);
     }
   }
 
-  function challengeFee(string calldata _claimID) public view returns (uint256 arbitrationFee) {
+  function transferOwnership(uint256 _claimAddress, address payable _newOwner) external {
+    Claim storage claim = claimStorage[_claimAddress];
+    require(msg.sender == claim.owner, "Only claimant can transfer ownership.");
+    claim.owner = _newOwner;
+  }
+
+  function challengeFee(string calldata _claimID) external view returns (uint256 arbitrationFee) {
     arbitrationFee = arbitrator.arbitrationCost(arbitratorExtraData);
   }
 
-  function appealFee(string calldata _claimID, uint256 _disputeID) public view returns (uint256 arbitrationFee) {
+  function appealFee(string calldata _claimID, uint256 _disputeID) external view returns (uint256 arbitrationFee) {
     arbitrationFee = arbitrator.appealCost(_disputeID, arbitratorExtraData);
+  }
+
+  function findVacantStorageSlot(uint256 _searchPointer) external view returns (uint256 vacantSlotIndex) {
+    Claim storage claim;
+    do {
+      claim = claimStorage[_searchPointer++];
+    } while (claim.bountyAmount != 0);
+
+    return _searchPointer - 1;
   }
 }

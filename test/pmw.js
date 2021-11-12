@@ -1,14 +1,19 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { BigNumber } = ethers;
+const crypto = require("crypto");
 
 const EXAMPLE_IPFS_CIDv1 = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
+const ANOTHER_EXAMPLE_IPFS_CIDv1 = "bafybeigdyrzt5sfp7OKOKAHLSKASLK2LK3JLlqabf3oclgtqy55fbzdi";
 
 const ONE_ETH = BigNumber.from(BigInt(1e18));
 const TWO_ETH = BigNumber.from(2).mul(BigNumber.from(BigInt(1e18)));
 const FIVE_ETH = BigNumber.from(5).mul(BigNumber.from(BigInt(1e18)));
-const TEN_ETH = BigNumber.from(10).mul(BigNumber.from(BigInt(1e18)));
-let TIMELOCK_PERIOD;
+const TEN_ETH = BigNumber.from(1000).mul(BigNumber.from(BigInt(1e18)));
+
+const TIMELOCK_PERIOD = 1000000;
+
+let NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE, APPROX_ONE_ETH;
 
 const RULING_OUTCOMES = Object.freeze({ ChallengeFailed: 0, ProvedWrong: 1 });
 
@@ -16,61 +21,68 @@ describe("Prove Me Wrong", () => {
   before("Deploying", async () => {
     [deployer, claimant, supporter, challenger, innocentBystander] = await ethers.getSigners();
     ({ arbitrator, pmw } = await deployContracts(deployer));
-    TIMELOCK_PERIOD = await pmw.connect(deployer).CLAIM_WITHDRAWAL_TIMELOCK();
 
-    // await pmw.connect(deployer).createNewArbitratorSettings(arbitrator.address, "0x00", "METAEVIDENCE");
+    NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = await pmw.connect(deployer).NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE();
+    APPROX_ONE_ETH = BigNumber.from(909_494).mul(BigNumber.from(2).pow(NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE));
   });
 
   describe("Default", () => {
-    // Skipping this in favor of the test case below as this is not useful for observing gas usages nor test functionality.
-    it.skip("Should initialize a new claim", async () => {
-      const args = [EXAMPLE_IPFS_CIDv1, 0];
+    // First claim, fresh slot.
+    it("Should initialize a new claim", async () => {
+      const args = [crypto.randomBytes(30).toString("hex"), 0];
 
-      await expect(pmw.connect(deployer).initialize(...args))
+      await expect(pmw.connect(deployer).initialize(...args, { value: TEN_ETH }))
         .to.emit(pmw, "NewClaim")
         .withArgs(...args.slice(0, 2));
     });
 
-    // Main gas optimization should be here.
-    it("Should initialize and fund a new claim", async () => {
-      const args = [EXAMPLE_IPFS_CIDv1];
+    // Withdrawing the first claim, to create a vacant used slot.
+    it("Should withdraw", async () => {
+      await expect(pmw.connect(deployer).initiateWithdrawal(0)).to.emit(pmw, "TimelockStarted");
+      // .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, BigNumber.from(2).mul(TEN_ETH));
+      await ethers.provider.send("evm_increaseTime", [TIMELOCK_PERIOD]);
 
-      await expect(pmw.connect(claimant).initialize(...args, { value: TEN_ETH }))
+      await pmw.connect(deployer).withdraw(0);
+    });
+
+    // Second claim, using a vacant used slot. Gas usage should be less than 35K here.
+    it("Should initialize and fund a new claim", async () => {
+      const args = { claimID: crypto.randomBytes(30).toString("hex"), claimAddress: 0 };
+
+      await expect(pmw.connect(claimant).initialize(args.claimID, args.claimAddress, { value: TEN_ETH }))
         .to.emit(pmw, "NewClaim")
-        .withArgs(...args.slice(0, 1))
+        .withArgs(args.claimID, args.claimAddress)
         .to.emit(pmw, "BalanceUpdate");
       // .withArgs(EXAMPLE_IPFS_CIDv1, TEN_ETH);
     });
 
-    it.skip("Should create an arbitrator setting", async () => {
-      const args = [arbitrator.address, "0x11", "0x22"];
-
-      await expect(pmw.connect(innocentBystander).createNewArbitratorSettings(...args))
-        .to.emit(pmw, "NewSetting")
-        .withArgs(1, ...args.slice(0, 2));
-    });
-
     it("Should not initialize an existing claim", async () => {
-      const args = [EXAMPLE_IPFS_CIDv1];
+      const args = { claimID: ANOTHER_EXAMPLE_IPFS_CIDv1, claimAddress: 0 };
 
-      await expect(pmw.connect(deployer).initialize(...args)).to.be.revertedWith("You can't initialize a live claim.");
+      expect((await pmw.connect(deployer).claimStorage(args.claimAddress)).bountyAmount).to.be.not.equal(0, "This storage slot is not occupied.");
+
+      const vacantSlotIndex = await pmw.connect(deployer).findVacantStorageSlot(0);
+
+      expect(await pmw.connect(deployer).initialize(args.claimID, args.claimAddress, { value: APPROX_ONE_ETH }))
+        .to.emit(pmw, "NewClaim")
+        .withArgs(args.claimID, vacantSlotIndex);
     });
 
     it("Should be able to increase bounty of a claim", async () => {
-      const args = [EXAMPLE_IPFS_CIDv1];
+      const args = [0];
 
       await expect(pmw.connect(claimant).increaseBounty(...args, { value: TEN_ETH })).to.emit(pmw, "BalanceUpdate");
       // .withArgs(EXAMPLE_IPFS_CIDv1, BigNumber.from(2).mul(TEN_ETH));
     });
 
     it("For reference: create dispute gas cost.", async () => {
-      await arbitrator.connect(challenger).createDispute(...[1, "0x1212121212121212"], { value: BigNumber.from("1000000000000000000") });
-      await arbitrator.connect(challenger).createDispute(...[1, "0x1212121212121212"], { value: BigNumber.from("1000000000000000000") });
-      await arbitrator.connect(challenger).createDispute(...[1, "0x1212121212121212"], { value: BigNumber.from("1000000000000000000") });
+      for (var i = 0; i < 10; i++) {
+        await arbitrator.connect(challenger).createDispute(...[1, "0x1212121212121212"], { value: BigNumber.from("1000000000000000000") });
+      }
     });
 
     it("Should challenge a claim", async () => {
-      const args = [EXAMPLE_IPFS_CIDv1];
+      const args = [0];
 
       const challengeFee = await pmw.connect(deployer).challengeFee(...args);
 
@@ -93,33 +105,55 @@ describe("Prove Me Wrong", () => {
         .withArgs(0, pmw.address);
     });
 
-    it("Should not let withdraw a claim prior timelock", async () => {
-      const args = [EXAMPLE_IPFS_CIDv1];
+    it("Should not let withdraw a claim during a dispute", async () => {
+      const args = { claimAddress: 0 };
 
-      await expect(pmw.connect(claimant).initiateWithdrawal(...args)).to.emit(pmw, "TimelockStarted");
+      await expect(pmw.connect(claimant).initiateWithdrawal(args.claimAddress)).to.be.revertedWith("Withdrawal already initiated or there is a challenge.");
+    });
+
+    it("Should let arbitrator to execute a ruling", async () => {
+      const DISPUTE_ID = 0;
+      await arbitrator.connect(deployer).giveRuling(DISPUTE_ID, RULING_OUTCOMES.ChallengeFailed, 100000000);
+      const { start, end } = await arbitrator.connect(deployer).appealPeriod(DISPUTE_ID);
+      await ethers.provider.send("evm_increaseTime", [end.toNumber()]);
+      console.log(arbitrator.connect(deployer).executeRuling);
+      await arbitrator.connect(deployer).executeRuling(DISPUTE_ID);
+    });
+
+    it("Should not let withdraw a claim prior timelock", async () => {
+      const args = { claimAddress: 0 };
+
+      await expect(pmw.connect(claimant).initiateWithdrawal(args.claimAddress)).to.emit(pmw, "TimelockStarted");
       // .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, BigNumber.from(2).mul(TEN_ETH));
 
-      await expect(pmw.connect(claimant).withdraw(...args)).to.be.revertedWith("You need to wait for timelock.");
+      await expect(pmw.connect(claimant).withdraw(args.claimAddress)).to.be.revertedWith("You need to wait for timelock.");
     });
 
     it("Should let withdraw a claim", async () => {
-      const args = [EXAMPLE_IPFS_CIDv1];
+      const args = { claimAddress: 0 };
 
       await ethers.provider.send("evm_increaseTime", [TIMELOCK_PERIOD]);
 
-      await expect(pmw.connect(claimant).withdraw(...args))
-        .to.emit(pmw, "Withdrew")
-        .withArgs(EXAMPLE_IPFS_CIDv1);
+      await expect(pmw.connect(claimant).withdraw(args.claimAddress)).to.emit(pmw, "Withdrew").withArgs(args.claimAddress);
     });
 
-    it("Should let to initialize the same claim again, after withdrawal", async () => {
-      const args = [EXAMPLE_IPFS_CIDv1];
+    // Third claim, using a vacant used slot. Gas usage should be less than 35K here.
+    it("Should initialize and fund a new claim", async () => {
+      const args = { claimID: crypto.randomBytes(30).toString("hex"), claimAddress: 0 };
 
-      await expect(pmw.connect(claimant).initialize(...args, { value: TEN_ETH }))
+      await expect(pmw.connect(claimant).initialize(args.claimID, args.claimAddress, { value: TEN_ETH }))
         .to.emit(pmw, "NewClaim")
-        .withArgs(...args.slice(0, 1))
+        .withArgs(args.claimID, args.claimAddress)
         .to.emit(pmw, "BalanceUpdate");
       // .withArgs(EXAMPLE_IPFS_CIDv1, TEN_ETH);
+    });
+
+    it("Should let a challenger to grab a bounty", async () => {
+      const args = [0];
+
+      const challengeFee = await pmw.connect(deployer).challengeFee(...args);
+
+      await expect(pmw.connect(challenger).challenge(...args, { value: challengeFee }));
     });
   });
 });
@@ -135,7 +169,7 @@ async function deployContracts(deployer) {
 
   const PMW = await ethers.getContractFactory("ProveMeWrong", deployer);
   // const pmw = await PMW.deploy({ arbitrator: arbitrator.address, arbitratorExtraData: "0x00" }, SHARE_DENOMINATOR, MIN_FUND_INCREASE_PERCENT, MIN_BOUNTY);
-  const pmw = await PMW.deploy(arbitrator.address, "0x00");
+  const pmw = await PMW.deploy(arbitrator.address, "0x00", "Metaevidence", TIMELOCK_PERIOD);
 
   await pmw.deployed();
 
