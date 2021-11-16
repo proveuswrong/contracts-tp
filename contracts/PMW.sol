@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.10;
 
 import "hardhat/console.sol";
 import "@kleros/erc-792/contracts/IArbitrable.sol";
@@ -44,8 +44,14 @@ import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
 
 */
 contract ProveMeWrong is IArbitrable, IEvidence {
+  IArbitrator public immutable ARBITRATOR;
+  uint256 public immutable CLAIM_WITHDRAWAL_TIMELOCK; // To prevent claimants to act fast and escape punishment.
   uint256 public constant NUMBER_OF_RULING_OPTIONS = 2;
   uint256 public constant NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = 40; // To compress bounty amount to gain space in struct. Lossy compression.
+  uint256 public immutable WINNER_STAKE_MULTIPLIER; // Multiplier of the arbitration cost that the winner has to pay as fee stake for a round in basis points.
+  uint256 public immutable LOSER_STAKE_MULTIPLIER; // Multiplier of the arbitration cost that the loser has to pay as fee stake for a round in basis points.
+  uint256 public constant LOSER_APPEAL_PERIOD_MULTIPLIER = 5000; // Multiplier of the appeal period for losers (any other ruling options) in basis points. The loser is given less time to fund its appeal to defend against last minute appeal funding attacks.
+  uint256 public constant MULTIPLIER_DENOMINATOR = 10000; // Denominator for multipliers.
 
   event NewClaim(string indexed claimID, uint256 claimAddress);
   event Debunked(uint256 claimAddress);
@@ -54,6 +60,9 @@ contract ProveMeWrong is IArbitrable, IEvidence {
   event TimelockStarted(uint256 claimAddress);
   event Challenge(uint256 indexed claimID, address challanger);
 
+  event Contribution(uint256 indexed claimAddress, uint256 indexed roundPointer, RulingOutcomes indexed ruling, address funder, uint256 amount);
+  event RulingFunded(uint256 indexed claimAddress, uint256 indexed roundPointer, RulingOutcomes indexed ruling);
+
   enum RulingOutcomes {
     ChallengeFailed,
     Debunked
@@ -61,7 +70,16 @@ contract ProveMeWrong is IArbitrable, IEvidence {
 
   // TODO: Implement  crowdfunded appeals
   struct DisputeData {
+    uint256 id;
     address payable challenger;
+    Round[] rounds; // Tracks each appeal round of a dispute.
+  }
+
+  struct Round {
+    mapping(address => mapping(RulingOutcomes => uint256)) contributions;
+    mapping(RulingOutcomes => bool) hasPaid; // True if the fees for this particular answer has been fully paid in the form hasPaid[rulingOutcome].
+    mapping(RulingOutcomes => uint256) totalPerRuling;
+    uint256 totalClaimableAfterExpenses;
   }
 
   // Claims are not addressed with their identifiers, to enable reusing a storage slot.
@@ -72,24 +90,26 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     uint48 bountyAmount;
   }
 
-  IArbitrator public immutable arbitrator;
-  uint256 public immutable claimWithdrawalTimelock; // To prevent claimants to act fast and escape punishment.
   bytes public arbitratorExtraData;
 
-  mapping(uint256 => Claim) public claimStorage;
-  mapping(uint256 => DisputeData) disputes;
+  mapping(uint256 => Claim) public claimStorage; // Key: Address of claim.
+  mapping(uint256 => DisputeData) disputes; // Key: Address of claim.
 
-  mapping(uint256 => uint256) externalIDtoLocalID; // Maps arbitrator dispute ID to claim ID.
+  mapping(uint256 => uint256) externalIDtoLocalID; // Maps ARBITRATOR dispute ID to claim ID.
 
   constructor(
     IArbitrator _arbitrator,
     bytes memory _arbitratorExtraData,
     string memory _metaevidenceIpfsUri,
-    uint256 _claimWithdrawalTimelock
+    uint256 _claimWithdrawalTimelock,
+    uint256 _winnerStakeMultiplier,
+    uint256 _loserStakeMultiplier
   ) {
-    arbitrator = _arbitrator;
+    ARBITRATOR = _arbitrator;
     arbitratorExtraData = _arbitratorExtraData;
-    claimWithdrawalTimelock = _claimWithdrawalTimelock;
+    CLAIM_WITHDRAWAL_TIMELOCK = _claimWithdrawalTimelock;
+    WINNER_STAKE_MULTIPLIER = _winnerStakeMultiplier;
+    LOSER_STAKE_MULTIPLIER = _loserStakeMultiplier;
 
     emit MetaEvidence(0, _metaevidenceIpfsUri);
   }
@@ -99,7 +119,6 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     do {
       claim = claimStorage[_searchPointer++];
     } while (claim.bountyAmount != 0);
-    // console.log("Found empty slot at %s", _searchPointer - 1);
 
     require(claim.bountyAmount == 0, "You can't initialize a live claim.");
 
@@ -127,7 +146,7 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     require(msg.sender == claim.owner, "Only claimant can withdraw a claim.");
     require(claim.withdrawalPermittedAt == 0, "Withdrawal already initiated or there is a challenge.");
 
-    claim.withdrawalPermittedAt = uint32(block.timestamp + claimWithdrawalTimelock);
+    claim.withdrawalPermittedAt = uint32(block.timestamp + CLAIM_WITHDRAWAL_TIMELOCK);
     emit TimelockStarted(_claimAddress);
   }
 
@@ -147,46 +166,96 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     emit Withdrew(_claimAddress);
   }
 
-  // TODO Crowdfunding
   function challenge(uint256 _claimAddress) public payable {
     Claim storage claim = claimStorage[_claimAddress];
     claim.withdrawalPermittedAt = type(uint32).max;
 
     require(claim.bountyAmount > 0, "Nothing to challenge.");
 
-    uint256 disputeID = arbitrator.createDispute{value: msg.value}(NUMBER_OF_RULING_OPTIONS, arbitratorExtraData);
+    uint256 disputeID = ARBITRATOR.createDispute{value: msg.value}(NUMBER_OF_RULING_OPTIONS, arbitratorExtraData);
     externalIDtoLocalID[disputeID] = _claimAddress;
 
-    disputes[disputeID] = DisputeData({challenger: payable(msg.sender)});
+    disputes[_claimAddress].id = disputeID;
+    disputes[_claimAddress].challenger = payable(msg.sender);
+    disputes[_claimAddress].rounds.push();
 
-    emit Dispute(arbitrator, disputeID, 0, uint256(keccak256(abi.encode(_claimAddress, claim.owner)))); // TODO Evidence Group ID
+    emit Dispute(ARBITRATOR, disputeID, 0, uint256(keccak256(abi.encode(_claimAddress, claim.owner)))); // TODO Evidence Group ID
     emit Challenge(_claimAddress, msg.sender);
   }
 
-  function appeal(string calldata _claimID, uint256 _disputeID) public payable {
-    arbitrator.appeal{value: msg.value}(_disputeID, arbitratorExtraData);
+  function fundAppeal(uint256 _claimAddress, RulingOutcomes _supportedRuling) external payable returns (bool fullyFunded) {
+    DisputeData storage dispute = disputes[_claimAddress];
+    uint256 disputeID = dispute.id;
+    uint256 currentRuling = ARBITRATOR.currentRuling(disputeID);
+    uint256 originalCost;
+    uint256 totalCost;
+    {
+      (uint256 originalStart, uint256 originalEnd) = ARBITRATOR.appealPeriod(disputeID);
+
+      uint256 multiplier;
+
+      if (uint256(_supportedRuling) == currentRuling) {
+        require(block.timestamp < originalEnd, "Funding must be made within the appeal period.");
+
+        multiplier = WINNER_STAKE_MULTIPLIER;
+      } else {
+        require(block.timestamp < (originalStart + ((originalEnd - originalStart) / 2)), "Funding must be made within the first half appeal period.");
+
+        multiplier = LOSER_STAKE_MULTIPLIER;
+      }
+
+      originalCost = ARBITRATOR.appealCost(disputeID, arbitratorExtraData);
+      totalCost = originalCost + ((originalCost * (multiplier)) / MULTIPLIER_DENOMINATOR);
+    }
+
+    uint256 lastRoundIndex = dispute.rounds.length - 1;
+    Round storage lastRound = dispute.rounds[lastRoundIndex];
+    require(!lastRound.hasPaid[_supportedRuling], "Appeal fee has already been paid.");
+
+    uint256 contribution = totalCost - (lastRound.totalPerRuling[_supportedRuling]) > msg.value ? msg.value : totalCost - (lastRound.totalPerRuling[_supportedRuling]);
+    emit Contribution(_claimAddress, lastRoundIndex, _supportedRuling, msg.sender, contribution);
+
+    lastRound.contributions[msg.sender][_supportedRuling] += contribution;
+    lastRound.totalPerRuling[_supportedRuling] += contribution;
+
+    if (lastRound.totalPerRuling[_supportedRuling] >= totalCost) {
+      lastRound.totalClaimableAfterExpenses += lastRound.totalPerRuling[_supportedRuling];
+      lastRound.hasPaid[_supportedRuling] = true;
+      emit RulingFunded(_claimAddress, lastRoundIndex, _supportedRuling);
+    }
+
+    if (lastRound.hasPaid[RulingOutcomes.ChallengeFailed] && lastRound.hasPaid[RulingOutcomes.Debunked]) {
+      dispute.rounds.push();
+
+      lastRound.totalClaimableAfterExpenses -= originalCost;
+      ARBITRATOR.appeal{value: originalCost}(disputeID, arbitratorExtraData);
+    }
+
+    if (msg.value - (contribution) > 0) payable(msg.sender).send(msg.value - (contribution)); // Sending extra value back to contributor.
+
+    return lastRound.hasPaid[_supportedRuling];
   }
 
   //TODO Evidence group ID
   function submitEvidence(string calldata _claimID, string calldata _evidenceURI) public {
-    emit Evidence(arbitrator, uint256(keccak256(bytes(_claimID))), msg.sender, _evidenceURI);
+    emit Evidence(ARBITRATOR, uint256(keccak256(bytes(_claimID))), msg.sender, _evidenceURI);
   }
 
   function rule(uint256 _disputeID, uint256 _ruling) external override {
     uint256 claimAddress = externalIDtoLocalID[_disputeID];
     Claim storage claim = claimStorage[claimAddress];
 
-    require(IArbitrator(msg.sender) == arbitrator);
+    require(IArbitrator(msg.sender) == ARBITRATOR);
     emit Ruling(IArbitrator(msg.sender), _disputeID, _ruling);
 
     if (RulingOutcomes(_ruling) == RulingOutcomes.Debunked) {
       uint256 bounty = uint88(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
       claim.bountyAmount = 0;
-      claim.withdrawalPermittedAt = 0;
 
       emit Debunked(claimAddress);
       disputes[_disputeID].challenger.send(bounty);
-    }
+    } // In case of tie, claim stands.
+    claim.withdrawalPermittedAt = 0;
   }
 
   function transferOwnership(uint256 _claimAddress, address payable _newOwner) external {
@@ -196,11 +265,11 @@ contract ProveMeWrong is IArbitrable, IEvidence {
   }
 
   function challengeFee(string calldata _claimID) external view returns (uint256 arbitrationFee) {
-    arbitrationFee = arbitrator.arbitrationCost(arbitratorExtraData);
+    arbitrationFee = ARBITRATOR.arbitrationCost(arbitratorExtraData);
   }
 
   function appealFee(string calldata _claimID, uint256 _disputeID) external view returns (uint256 arbitrationFee) {
-    arbitrationFee = arbitrator.appealCost(_disputeID, arbitratorExtraData);
+    arbitrationFee = ARBITRATOR.appealCost(_disputeID, arbitratorExtraData);
   }
 
   function findVacantStorageSlot(uint256 _searchPointer) external view returns (uint256 vacantSlotIndex) {

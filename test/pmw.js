@@ -5,6 +5,10 @@ const crypto = require("crypto");
 
 const EXAMPLE_IPFS_CIDv1 = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
 const ANOTHER_EXAMPLE_IPFS_CIDv1 = "bafybeigdyrzt5sfp7OKOKAHLSKASLK2LK3JLlqabf3oclgtqy55fbzdi";
+const WINNER_STAKE_MULTIPLIER = 3000;
+const LOSER_STAKE_MULTIPLIER = 7000;
+const MULTIPLIER_DENOMINATOR = 10000;
+const APPEAL_WINDOW = 1000;
 
 const ONE_ETH = BigNumber.from(BigInt(1e18));
 const TWO_ETH = BigNumber.from(2).mul(BigNumber.from(BigInt(1e18)));
@@ -14,8 +18,9 @@ const TEN_ETH = BigNumber.from(1000).mul(BigNumber.from(BigInt(1e18)));
 const TIMELOCK_PERIOD = 1000000;
 
 let NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE, APPROX_ONE_ETH;
+let disputeCounter = 0;
 
-const RULING_OUTCOMES = Object.freeze({ ChallengeFailed: 0, ProvedWrong: 1 });
+const RULING_OUTCOMES = Object.freeze({ ChallengeFailed: 0, Debunked: 1 });
 
 describe("Prove Me Wrong", () => {
   before("Deploying", async () => {
@@ -76,17 +81,21 @@ describe("Prove Me Wrong", () => {
     });
 
     it("For reference: create dispute gas cost.", async () => {
-      for (var i = 0; i < 10; i++) {
-        await arbitrator.connect(challenger).createDispute(...[1, "0x1212121212121212"], { value: BigNumber.from("1000000000000000000") });
+      for (; disputeCounter < 10; disputeCounter++) {
+        expect(await arbitrator.connect(challenger).createDispute(...[1, "0x1212121212121212"], { value: BigNumber.from("1000000000000000000") }))
+          .to.emit(arbitrator, "DisputeCreation")
+          .withArgs(disputeCounter, challenger.address);
       }
     });
 
     it("Should challenge a claim", async () => {
-      const args = [0];
+      const CLAIM_ADDRESS = 0;
 
-      const challengeFee = await pmw.connect(deployer).challengeFee(...args);
+      const challengeFee = await pmw.connect(deployer).challengeFee(CLAIM_ADDRESS);
 
-      await expect(pmw.connect(challenger).challenge(...args, { value: challengeFee }));
+      await expect(pmw.connect(challenger).challenge(CLAIM_ADDRESS, { value: challengeFee }))
+        .to.emit(arbitrator, "DisputeCreation")
+        .withArgs(disputeCounter++, pmw.address);
     });
 
     it("Should submit evidence to a dispute", async () => {
@@ -96,13 +105,29 @@ describe("Prove Me Wrong", () => {
       await expect(pmw.connect(challenger).submitEvidence(...args));
     });
 
-    it("Should appeal a dispute", async () => {
-      await arbitrator.connect(deployer).giveRuling(0, RULING_OUTCOMES.ChallengeFailed, 100000000);
+    it("Should fund appeal of a dispute", async () => {
+      const DISPUTE_ID = disputeCounter - 1;
+      const CLAIM_ADDRESS = 0;
 
-      const appealFee = await pmw.connect(deployer).appealFee(0, "0x00");
-      await expect(pmw.connect(challenger).appeal(EXAMPLE_IPFS_CIDv1, 0, { value: appealFee }))
+      await arbitrator.connect(deployer).giveRuling(DISPUTE_ID, RULING_OUTCOMES.ChallengeFailed, APPEAL_WINDOW);
+      await ethers.provider.send("evm_increaseTime", [10]);
+
+      const appealFee = await pmw.connect(deployer).appealFee(CLAIM_ADDRESS, DISPUTE_ID);
+      const WINNER_FUNDING = appealFee.add(appealFee.mul(WINNER_STAKE_MULTIPLIER).div(MULTIPLIER_DENOMINATOR));
+      const LOSER_FUNDING = appealFee.add(appealFee.mul(LOSER_STAKE_MULTIPLIER).div(MULTIPLIER_DENOMINATOR));
+
+      console.log(WINNER_FUNDING.toString());
+      console.log(LOSER_FUNDING.toString());
+
+      expect(await pmw.connect(challenger).fundAppeal(CLAIM_ADDRESS, RULING_OUTCOMES.Debunked, { value: LOSER_FUNDING }))
+        .to.emit(pmw, "RulingFunded")
+        .withArgs(CLAIM_ADDRESS, 0, RULING_OUTCOMES.Debunked);
+
+      expect(await pmw.connect(challenger).fundAppeal(CLAIM_ADDRESS, RULING_OUTCOMES.ChallengeFailed, { value: WINNER_FUNDING }))
+        .to.emit(pmw, "RulingFunded")
+        .withArgs(CLAIM_ADDRESS, 0, RULING_OUTCOMES.ChallengeFailed)
         .to.emit(arbitrator, "AppealDecision")
-        .withArgs(0, pmw.address);
+        .withArgs(DISPUTE_ID, pmw.address);
     });
 
     it("Should not let withdraw a claim during a dispute", async () => {
@@ -112,11 +137,10 @@ describe("Prove Me Wrong", () => {
     });
 
     it("Should let arbitrator to execute a ruling", async () => {
-      const DISPUTE_ID = 0;
+      const DISPUTE_ID = disputeCounter - 1;
       await arbitrator.connect(deployer).giveRuling(DISPUTE_ID, RULING_OUTCOMES.ChallengeFailed, 100000000);
       const { start, end } = await arbitrator.connect(deployer).appealPeriod(DISPUTE_ID);
       await ethers.provider.send("evm_increaseTime", [end.toNumber()]);
-      console.log(arbitrator.connect(deployer).executeRuling);
       await arbitrator.connect(deployer).executeRuling(DISPUTE_ID);
     });
 
@@ -148,12 +172,22 @@ describe("Prove Me Wrong", () => {
       // .withArgs(EXAMPLE_IPFS_CIDv1, TEN_ETH);
     });
 
-    it("Should let a challenger to grab a bounty", async () => {
-      const args = [0];
+    it("Should let a challenger to win a bounty", async () => {
+      disputeCounter++;
+      const DISPUTE_ID = disputeCounter - 1;
+      const CLAIM_ADDRESS = 0;
 
-      const challengeFee = await pmw.connect(deployer).challengeFee(...args);
+      const challengeFee = await pmw.connect(deployer).challengeFee(CLAIM_ADDRESS);
 
-      await expect(pmw.connect(challenger).challenge(...args, { value: challengeFee }));
+      await expect(pmw.connect(challenger).challenge(CLAIM_ADDRESS, { value: challengeFee }));
+      expect(await arbitrator.connect(deployer).giveRuling(DISPUTE_ID, RULING_OUTCOMES.Debunked, APPEAL_WINDOW))
+        .to.emit(arbitrator, "AppealPossible")
+        .withArgs(DISPUTE_ID, pmw.address);
+      const { start, end } = await arbitrator.connect(deployer).appealPeriod(DISPUTE_ID);
+      await ethers.provider.send("evm_increaseTime", [end.toNumber()]);
+      expect(await arbitrator.connect(deployer).executeRuling(DISPUTE_ID))
+        .to.emit(pmw, "Debunked")
+        .withArgs(CLAIM_ADDRESS);
     });
   });
 });
@@ -169,7 +203,7 @@ async function deployContracts(deployer) {
 
   const PMW = await ethers.getContractFactory("ProveMeWrong", deployer);
   // const pmw = await PMW.deploy({ arbitrator: arbitrator.address, arbitratorExtraData: "0x00" }, SHARE_DENOMINATOR, MIN_FUND_INCREASE_PERCENT, MIN_BOUNTY);
-  const pmw = await PMW.deploy(arbitrator.address, "0x00", "Metaevidence", TIMELOCK_PERIOD);
+  const pmw = await PMW.deploy(arbitrator.address, "0x00", "Metaevidence", TIMELOCK_PERIOD, WINNER_STAKE_MULTIPLIER, LOSER_STAKE_MULTIPLIER);
 
   await pmw.deployed();
 
