@@ -20,7 +20,7 @@ const TIMELOCK_PERIOD = 1000000;
 let NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE, APPROX_ONE_ETH;
 let disputeCounter = 0;
 
-const RULING_OUTCOMES = Object.freeze({ ChallengeFailed: 0, Debunked: 1 });
+const RULING_OUTCOMES = Object.freeze({ Tied: 0, ChallengeFailed: 1, Debunked: 2 });
 
 describe("Prove Me Wrong", () => {
   before("Deploying", async () => {
@@ -115,9 +115,6 @@ describe("Prove Me Wrong", () => {
       const appealFee = await pmw.connect(deployer).appealFee(CLAIM_ADDRESS, DISPUTE_ID);
       const WINNER_FUNDING = appealFee.add(appealFee.mul(WINNER_STAKE_MULTIPLIER).div(MULTIPLIER_DENOMINATOR));
       const LOSER_FUNDING = appealFee.add(appealFee.mul(LOSER_STAKE_MULTIPLIER).div(MULTIPLIER_DENOMINATOR));
-
-      console.log(WINNER_FUNDING.toString());
-      console.log(LOSER_FUNDING.toString());
 
       expect(await pmw.connect(challenger).fundAppeal(CLAIM_ADDRESS, RULING_OUTCOMES.Debunked, { value: LOSER_FUNDING }))
         .to.emit(pmw, "RulingFunded")

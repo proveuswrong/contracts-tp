@@ -8,38 +8,39 @@ import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
 
 /* Draft - Do not review.
   TODOs
-  - Implement crowdfunded appeals
   - Evidence group id needs to be designed. Currently, information seems inadequate to propoperly categorize evidence.
   ·---------------------------------------|---------------------------|--------------|-----------------------------·
-  |          Solc version: 0.8.4          ·  Optimizer enabled: true  ·  Runs: 1000  ·  Block limit: 30000000 gas  │
+  |         Solc version: 0.8.10          ·  Optimizer enabled: true  ·  Runs: 1000  ·  Block limit: 30000000 gas  │
   ········································|···························|··············|······························
   |  Methods                                                                                                       │
   ·················|······················|·············|·············|··············|···············|··············
   |  Contract      ·  Method              ·  Min        ·  Max        ·  Avg         ·  # calls      ·  usd (avg)  │
   ·················|······················|·············|·············|··············|···············|··············
-  |  Arbitrator    ·  createDispute       ·      82573  ·      99673  ·       84283  ·           10  ·          -  │
+  |  Arbitrator    ·  createDispute       ·      82579  ·      99679  ·       84289  ·           20  ·          -  │
   ·················|······················|·············|·············|··············|···············|··············
-  |  Arbitrator    ·  giveRuling          ·          -  ·          -  ·       78616  ·            2  ·          -  │
+  |  Arbitrator    ·  executeRuling       ·      47622  ·      85487  ·       72865  ·            3  ·          -  │
   ·················|······················|·············|·············|··············|···············|··············
-  |  ProveMeWrong  ·  appeal              ·          -  ·          -  ·       42138  ·            2  ·          -  │
+  |  Arbitrator    ·  giveRuling          ·      78640  ·      98528  ·       93556  ·            4  ·          -  │
   ·················|······················|·············|·············|··············|···············|··············
-  |  ProveMeWrong  ·  challenge           ·          -  ·          -  ·      127908  ·            1  ·          -  │
+  |  ProveMeWrong  ·  challenge           ·     117867  ·     171967  ·      153934  ·            3  ·          -  │
   ·················|······················|·············|·············|··············|···············|··············
-  |  ProveMeWrong  ·  increaseBounty      ·          -  ·          -  ·       28534  ·            2  ·          -  │
+  |  ProveMeWrong  ·  fundAppeal          ·     135746  ·     140807  ·      137770  ·            5  ·          -  │
   ·················|······················|·············|·············|··············|···············|··············
-  |  ProveMeWrong  ·  initialize          ·      32210  ·      53936  ·       46023  ·           10  ·          -  │
+  |  ProveMeWrong  ·  increaseBounty      ·          -  ·          -  ·       28513  ·            2  ·          -  │
   ·················|······················|·············|·············|··············|···············|··············
-  |  ProveMeWrong  ·  initiateWithdrawal  ·          -  ·          -  ·       28001  ·            2  ·          -  │
+  |  ProveMeWrong  ·  initialize          ·      32189  ·      51566  ·       39484  ·           10  ·          -  │
   ·················|······················|·············|·············|··············|···············|··············
-  |  ProveMeWrong  ·  submitEvidence      ·          -  ·          -  ·       27563  ·            2  ·          -  │
+  |  ProveMeWrong  ·  initiateWithdrawal  ·          -  ·          -  ·       28046  ·            4  ·          -  │
   ·················|······················|·············|·············|··············|···············|··············
-  |  ProveMeWrong  ·  withdraw            ·          -  ·          -  ·       34963  ·            1  ·          -  │
+  |  ProveMeWrong  ·  submitEvidence      ·          -  ·          -  ·       27608  ·            2  ·          -  │
+  ·················|······················|·············|·············|··············|···············|··············
+  |  ProveMeWrong  ·  withdraw            ·          -  ·          -  ·       35007  ·            3  ·          -  │
   ·················|······················|·············|·············|··············|···············|··············
   |  Deployments                          ·                                          ·  % of limit   ·             │
   ········································|·············|·············|··············|···············|··············
-  |  Arbitrator                           ·          -  ·          -  ·      907963  ·          3 %  ·          -  │
+  |  Arbitrator                           ·          -  ·          -  ·      877877  ·        2.9 %  ·          -  │
   ········································|·············|·············|··············|···············|··············
-  |  ProveMeWrong                         ·          -  ·          -  ·     1361724  ·        4.5 %  ·          -  │
+  |  ProveMeWrong                         ·          -  ·          -  ·     2380924  ·        7.9 %  ·          -  │
   ·---------------------------------------|-------------|-------------|--------------|---------------|-------------·
 
 */
@@ -62,8 +63,10 @@ contract ProveMeWrong is IArbitrable, IEvidence {
 
   event Contribution(uint256 indexed claimAddress, uint256 indexed roundPointer, RulingOutcomes indexed ruling, address funder, uint256 amount);
   event RulingFunded(uint256 indexed claimAddress, uint256 indexed roundPointer, RulingOutcomes indexed ruling);
+  event Withdrawal(uint256 indexed _localDisputeID, uint256 indexed _round, uint256 _ruling, address indexed _contributor, uint256 _reward);
 
   enum RulingOutcomes {
+    Tied,
     ChallengeFailed,
     Debunked
   }
@@ -226,7 +229,6 @@ contract ProveMeWrong is IArbitrable, IEvidence {
 
     if (lastRound.hasPaid[RulingOutcomes.ChallengeFailed] && lastRound.hasPaid[RulingOutcomes.Debunked]) {
       dispute.rounds.push();
-
       lastRound.totalClaimableAfterExpenses -= originalCost;
       ARBITRATOR.appeal{value: originalCost}(disputeID, arbitratorExtraData);
     }
@@ -279,5 +281,127 @@ contract ProveMeWrong is IArbitrable, IEvidence {
     } while (claim.bountyAmount != 0);
 
     return _searchPointer - 1;
+  }
+
+  /** @dev Returns multipliers for appeals.
+   *  @return _WINNER_STAKE_MULTIPLIER Winners stake multiplier.
+   *  @return _LOSER_STAKE_MULTIPLIER Losers stake multiplier.
+   *  @return _LOSER_APPEAL_PERIOD_MULTIPLIER Losers appeal period multiplier. The loser is given less time to fund its appeal to defend against last minute appeal funding attacks.
+   *  @return _DENOMINATOR Multiplier denominator in basis points. Required for achieving floating-point-like behavior.
+   */
+  function getMultipliers()
+    external
+    view
+    returns (
+      uint256 _WINNER_STAKE_MULTIPLIER,
+      uint256 _LOSER_STAKE_MULTIPLIER,
+      uint256 _LOSER_APPEAL_PERIOD_MULTIPLIER,
+      uint256 _DENOMINATOR
+    )
+  {
+    return (WINNER_STAKE_MULTIPLIER, LOSER_STAKE_MULTIPLIER, LOSER_APPEAL_PERIOD_MULTIPLIER, MULTIPLIER_DENOMINATOR);
+  }
+
+  /** @dev Allows to withdraw any rewards or reimbursable fees after the dispute gets resolved. For all rounds at once.
+   *  This function has O(m) time complexity where m is number of rounds.
+   *  It is safe to assume m is always less than 10 as appeal cost growth order is O(2^m).
+   *  @param _claimAddress Address of storage of the claim.
+   *  @param _contributor The address whose rewards to withdraw.
+   *  @param _ruling Ruling that received contributions from contributor.
+   */
+  function withdrawFeesAndRewardsForAllRounds(
+    uint256 _claimAddress,
+    address payable _contributor,
+    uint256 _ruling
+  ) external {
+    DisputeData storage dispute = disputes[_claimAddress];
+    uint256 noOfRounds = dispute.rounds.length;
+
+    for (uint256 roundNumber = 0; roundNumber < noOfRounds; roundNumber++) {
+      withdrawFeesAndRewards(_claimAddress, _contributor, roundNumber, _ruling);
+    }
+  }
+
+  /** @dev Allows to withdraw any reimbursable fees or rewards after the dispute gets solved.
+   *  @param _claimAddress Address of storage of the claim.
+   *  @param _contributor The address whose rewards to withdraw.
+   *  @param _roundNumber The number of the round caller wants to withdraw from.
+   *  @param _ruling Ruling that received contribution from contributor.
+   *  @return amount The amount available to withdraw for given question, contributor, round number and ruling option.
+   */
+  function withdrawFeesAndRewards(
+    uint256 _claimAddress,
+    address payable _contributor,
+    uint256 _roundNumber,
+    uint256 _ruling
+  ) public returns (uint256 amount) {
+    DisputeData storage dispute = disputes[_claimAddress];
+    require(ARBITRATOR.disputeStatus(dispute.id) == IArbitrator.DisputeStatus.Solved, "There is no ruling yet.");
+
+    Round storage round = dispute.rounds[_roundNumber];
+
+    amount = getWithdrawableAmount(round, _contributor, _ruling, ARBITRATOR.currentRuling(dispute.id));
+
+    if (amount != 0) {
+      round.contributions[_contributor][RulingOutcomes(_ruling)] = 0;
+      _contributor.send(amount); // Ignoring failure condition deliberately.
+      emit Withdrawal(_claimAddress, _roundNumber, _ruling, _contributor, amount);
+    }
+  }
+
+  /** @dev Returns the sum of withdrawable amount.
+   *  This function has O(m) time complexity where m is number of rounds.
+   *  It is safe to assume m is always less than 10 as appeal cost growth order is O(m^2).
+   *  @param _claimAddress Address of storage of the claim.
+   *  @param _contributor The contributor for which to query.
+   *  @param _ruling Ruling option to look for potential withdrawals.
+   *  @return sum The total amount available to withdraw.
+   */
+  function getTotalWithdrawableAmount(
+    uint256 _claimAddress,
+    address payable _contributor,
+    uint256 _ruling
+  ) external view returns (uint256 sum) {
+    DisputeData storage dispute = disputes[_claimAddress];
+    if (ARBITRATOR.disputeStatus(dispute.id) != IArbitrator.DisputeStatus.Solved) return 0;
+    uint256 noOfRounds = dispute.rounds.length;
+    uint256 finalRuling = ARBITRATOR.currentRuling(dispute.id);
+
+    for (uint256 roundNumber = 0; roundNumber < noOfRounds; roundNumber++) {
+      Round storage round = dispute.rounds[roundNumber];
+      sum += getWithdrawableAmount(round, _contributor, _ruling, finalRuling);
+    }
+  }
+
+  /** @dev Returns withdrawable amount for given parameters.
+   *  @param _round The round to calculate amount for.
+   *  @param _contributor The contributor for which to query.
+   *  @param _ruling The ruling option to search for potential withdrawal.
+   *  @param _finalRuling Final ruling given by arbitrator.
+   *  @return amount Amount available to withdraw for given ruling option.
+   */
+  function getWithdrawableAmount(
+    Round storage _round,
+    address _contributor,
+    uint256 _ruling,
+    uint256 _finalRuling
+  ) internal view returns (uint256 amount) {
+    if (!_round.hasPaid[RulingOutcomes(_ruling)]) {
+      // Allow to reimburse if funding was unsuccessful for this ruling option.
+      amount = _round.contributions[_contributor][RulingOutcomes(_ruling)];
+    } else {
+      // Funding was successful for this ruling option.
+      if (_ruling == _finalRuling) {
+        // This ruling option is the ultimate winner.
+        amount = _round.totalPerRuling[RulingOutcomes(_ruling)] > 0
+          ? (_round.contributions[_contributor][RulingOutcomes(_ruling)] * _round.totalClaimableAfterExpenses) / _round.totalPerRuling[RulingOutcomes(_ruling)]
+          : 0;
+      } else if (!_round.hasPaid[RulingOutcomes(_ruling)]) {
+        // The ultimate winner was not funded in this round. Contributions discounting the appeal fee are reimbursed proportionally.
+        amount =
+          (_round.contributions[_contributor][RulingOutcomes(_ruling)] * _round.totalClaimableAfterExpenses) /
+          (_round.totalPerRuling[RulingOutcomes.ChallengeFailed] + _round.totalPerRuling[RulingOutcomes.Debunked]);
+      }
+    }
   }
 }
