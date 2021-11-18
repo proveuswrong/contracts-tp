@@ -560,7 +560,14 @@
   resolved "https://registry.yarnpkg.com/@humanwhocodes/object-schema/-/object-schema-1.2.1.tgz#b520529ec21d8e5945a1851dfd1c32e94e39ff45"
   integrity sha512-ZnQMnLV4e7hDlUvw8H+U8ASL02SS2Gn6+9Ac3wGGLIe7+je2AeAOxPY+izIPJDfFDb7eDjev0Us8MO1iFRN8hA==
 
-"@kleros/erc-792@^8.0.0":
+"@kleros/dispute-resolver-interface-contract@^8.0.0":
+  version "8.0.0"
+  resolved "https://registry.yarnpkg.com/@kleros/dispute-resolver-interface-contract/-/dispute-resolver-interface-contract-8.0.0.tgz#89156030bd098d1588b8c80943276eeb130d53b1"
+  integrity sha512-595kIpb1riFy8cyx0Kf27kqSyCRph+dUK2MdLJ7sG81UdlcJV+dCdImI4V36AYV/A7z24h2sHz9aMeNPHdXMhw==
+  dependencies:
+    "@kleros/erc-792" "8.0.0"
+
+"@kleros/erc-792@8.0.0", "@kleros/erc-792@^8.0.0":
   version "8.0.0"
   resolved "https://registry.yarnpkg.com/@kleros/erc-792/-/erc-792-8.0.0.tgz#d6dfe689e073181dd03a79199b4d3fc8f7fdc219"
   integrity sha512-tl3HnOGbUIRRGIxenb3QJ/eduLTf+I1WY9YmyBrUvRCpgQva/xDDGovvj2n95XP/QjPfYXrkkXTW/vNgT3++Pg==

@@ -4,6 +4,7 @@
   "description": "Contracts of Prove Me Wrong",
   "main": "index.js",
   "dependencies": {
+    "@kleros/dispute-resolver-interface-contract": "^8.0.0",
     "@kleros/erc-792": "^8.0.0"
   },
   "devDependencies": {
@@ -49,6 +50,6 @@
   },
   "prettier": {
     "tabWidth": 2,
-    "printWidth": 180
+    "printWidth": 140
   }
 }
