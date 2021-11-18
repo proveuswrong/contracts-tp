@@ -8,11 +8,9 @@
  */
 
 pragma solidity ^0.8.10;
-import "hardhat/console.sol";
 import "@kleros/dispute-resolver-interface-contract/contracts/IDisputeResolver.sol";
 
 /*
-
 ·---------------------------------------|---------------------------|--------------|-----------------------------·
 |         Solc version: 0.8.10          ·  Optimizer enabled: true  ·  Runs: 1000  ·  Block limit: 30000000 gas  │
 ········································|···························|··············|······························
@@ -46,9 +44,6 @@ import "@kleros/dispute-resolver-interface-contract/contracts/IDisputeResolver.s
 ········································|·············|·············|··············|···············|··············
 |  ProveMeWrong                         ·          -  ·          -  ·     2363274  ·        7.9 %  ·     959.93  │
 ·---------------------------------------|-------------|-------------|--------------|---------------|-------------·
-
-
-
 */
 
 /** @title  Prove Me Wrong

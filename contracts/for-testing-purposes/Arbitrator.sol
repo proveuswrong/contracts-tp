@@ -4,7 +4,6 @@ pragma solidity >=0.8.10;
 
 import "@kleros/erc-792/contracts/IArbitrable.sol";
 import "@kleros/erc-792/contracts/IArbitrator.sol";
-import "hardhat/console.sol";
 
 /** @title An IArbitrator implemetation for testing purposes.
  *  @dev DON'T USE ON PRODUCTION.
@@ -43,7 +42,15 @@ contract Arbitrator is IArbitrator {
   function createDispute(uint256 _choices, bytes memory _extraData) public payable override returns (uint256 disputeID) {
     uint256 arbitrationFee = arbitrationCost(_extraData);
     require(msg.value >= arbitrationFee, "Value is less than required arbitration fee.");
-    disputes.push(Dispute({arbitrated: IArbitrable(msg.sender), numberOfRulingOptions: _choices, ruling: 0, status: DisputeStatus.Waiting, appealDeadline: 0}));
+    disputes.push(
+      Dispute({
+        arbitrated: IArbitrable(msg.sender),
+        numberOfRulingOptions: _choices,
+        ruling: 0,
+        status: DisputeStatus.Waiting,
+        appealDeadline: 0
+      })
+    );
     disputeID = disputes.length - 1;
     emit DisputeCreation(disputeID, IArbitrable(msg.sender));
   }

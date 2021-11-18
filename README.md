@@ -1,6 +1,6 @@
 # Smart Contract of Prove Me Wrong
 
-## A curated list where submissions are on hold forever until submitter withdraws and the amount of security deposits are defined by submitters.
+A curated list where submissions are on hold forever until submitter withdraws and the amount of security deposits are defined by submitters.
 
 Or in other words: Create a claim, put a bounty, invite others to prove you wrong.
 
