@@ -208,7 +208,7 @@ contract ProveMeWrong is IDisputeResolver {
     disputes[_claimAddress].challenger = payable(msg.sender);
     disputes[_claimAddress].rounds.push();
 
-    emit Dispute(ARBITRATOR, disputeID, 0, disputeID); // TODO Evidence Group ID
+    emit Dispute(ARBITRATOR, disputeID, claim.freeSpace, disputeID);
     emit Challenge(_claimAddress, msg.sender);
   }
 
