@@ -133,7 +133,7 @@ contract ProveMeWrong is IDisputeResolver {
     require(claim.bountyAmount == 0, "You can't initialize a live claim.");
 
     claim.owner = payable(msg.sender);
-    claim.bountyAmount += uint48(msg.value >> NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
+    claim.bountyAmount = uint48(msg.value >> NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
 
     require(claim.bountyAmount > 0, "You can't initialize a claim without putting a bounty.");
 
