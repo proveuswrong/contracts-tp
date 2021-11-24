@@ -279,7 +279,7 @@ contract ProveMeWrong is IDisputeResolver {
   /** @notice Returns number of possible ruling options of disputes that arise from this contract. Does not count ruling option 0 (tied), as it's implicit.
       @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process. This value will overflow in year 2106.
    */
-  function numberOfRulingOptions(uint256) external view virtual override returns (uint256 count) {
+  function numberOfRulingOptions(uint256) external view override returns (uint256 count) {
     return uint256(type(RulingOutcomes).max);
   }
 
