@@ -130,8 +130,6 @@ contract ProveMeWrong is IDisputeResolver {
       claim = claimStorage[_searchPointer++];
     } while (claim.bountyAmount != 0);
 
-    require(claim.bountyAmount == 0, "You can't initialize a live claim.");
-
     claim.owner = payable(msg.sender);
     claim.bountyAmount = uint48(msg.value >> NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
 
