@@ -79,7 +79,8 @@ contract ProveMeWrong is IDisputeResolver {
   struct DisputeData {
     uint256 id;
     address payable challenger;
-    uint96 freeSpace; // Unused.
+    uint32 roundStartIndex; // Since we are reusing the same storage address, we need to prevent round data leaking from a previous dispute.
+    uint64 freeSpace; // Unused.
     Round[] rounds; // Tracks each appeal round of a dispute.
   }
 
@@ -205,6 +206,7 @@ contract ProveMeWrong is IDisputeResolver {
 
     disputes[_claimAddress].id = disputeID;
     disputes[_claimAddress].challenger = payable(msg.sender);
+    disputes[_claimAddress].roundStartIndex = uint32(disputes[_claimAddress].rounds.length);
     disputes[_claimAddress].rounds.push();
 
     emit Dispute(ARBITRATOR, disputeID, claim.freeSpace, disputeID);
@@ -317,7 +319,7 @@ contract ProveMeWrong is IDisputeResolver {
     DisputeData storage dispute = disputes[_claimAddress];
     uint256 noOfRounds = dispute.rounds.length;
 
-    for (uint256 roundNumber = 0; roundNumber < noOfRounds; roundNumber++) {
+    for (uint256 roundNumber = dispute.roundStartIndex; roundNumber < noOfRounds; roundNumber++) {
       withdrawFeesAndRewards(_claimAddress, _contributor, roundNumber, _ruling);
     }
   }
@@ -411,7 +413,7 @@ contract ProveMeWrong is IDisputeResolver {
     uint256 noOfRounds = dispute.rounds.length;
     uint256 finalRuling = ARBITRATOR.currentRuling(dispute.id);
 
-    for (uint256 roundNumber = 0; roundNumber < noOfRounds; roundNumber++) {
+    for (uint256 roundNumber = dispute.roundStartIndex; roundNumber < noOfRounds; roundNumber++) {
       Round storage round = dispute.rounds[roundNumber];
       sum += getWithdrawableAmount(round, _contributor, _ruling, finalRuling);
     }
