@@ -197,7 +197,7 @@ contract ProveMeWrong is IDisputeResolver {
    */
   function challenge(uint256 _claimStorageAddress) public payable {
     Claim storage claim = claimStorage[_claimStorageAddress];
-    require(claim.withdrawalPermittedAt != type(uint32).max, "There is an ongoing challenge."); // To prevent mistakes.
+    require(claim.withdrawalPermittedAt != type(uint32).max, "There is an ongoing challenge.");
     claim.withdrawalPermittedAt = type(uint32).max; // Mark as challenged.
 
     require(claim.bountyAmount > 0, "Nothing to challenge."); // To prevent mistakes.
