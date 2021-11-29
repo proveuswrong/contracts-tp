@@ -340,6 +340,7 @@ contract ProveMeWrong is IDisputeResolver {
   ) public override returns (uint256 amount) {
     DisputeData storage dispute = disputes[_claimStorageAddress];
     require(ARBITRATOR.disputeStatus(dispute.id) == IArbitrator.DisputeStatus.Solved, "There is no ruling yet.");
+    require(_roundNumber >= dispute.roundStartIndex, "This round number belongs to an older claim.");
 
     Round storage round = dispute.rounds[_roundNumber];
 
