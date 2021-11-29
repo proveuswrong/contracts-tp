@@ -54,6 +54,7 @@ import "./IProveMeWrong.sol";
             Claims are not addressed with their identifiers. That enables us to reuse same storage address for another claim later.
             Arbitrator and the extra data is fixed. Also the metaevidence. Deploy another contract to change them.
             We prevent claims to get withdrawn immediately. This is to prevent submitter to escape punishment in case someone discovers an argument to debunk the claim.
+            Bounty amounts are compressed with a lossy compression method to save on storage cost.
  */
 contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   IArbitrator public immutable ARBITRATOR;
@@ -64,36 +65,36 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   uint256 public constant LOSER_APPEAL_PERIOD_MULTIPLIER = 5000; // Multiplier of the appeal period for losers (any other ruling options) in basis points. The loser is given less time to fund its appeal to defend against last minute appeal funding attacks.
   uint256 public constant MULTIPLIER_DENOMINATOR = 10000; // Denominator for multipliers.
 
-  enum RulingOutcomes {
+  enum RulingOptions {
     Tied,
     ChallengeFailed,
     Debunked
   }
 
   struct DisputeData {
-    uint256 id;
+    uint256 id; // As in arbitrator.
     address payable challenger;
     uint96 roundStartIndex; // Since we are reusing the same storage address, we need to prevent round data leaking from a previous dispute. Can be shrinked to uint32 if we need space for another field.
     Round[] rounds; // Tracks each appeal round of a dispute.
   }
 
   struct Round {
-    mapping(address => mapping(RulingOutcomes => uint256)) contributions;
-    mapping(RulingOutcomes => bool) hasPaid; // True if the fees for this particular answer has been fully paid in the form hasPaid[rulingOutcome].
-    mapping(RulingOutcomes => uint256) totalPerRuling;
+    mapping(address => mapping(RulingOptions => uint256)) contributions;
+    mapping(RulingOptions => bool) hasPaid; // True if the fees for this particular answer has been fully paid in the form hasPaid[rulingOutcome].
+    mapping(RulingOptions => uint256) totalPerRuling;
     uint256 totalClaimableAfterExpenses;
   }
 
   struct Claim {
-    address payable owner; // 160 bit
-    uint32 withdrawalPermittedAt; // Overflows in year 2106
+    address payable owner;
+    uint32 withdrawalPermittedAt; // Overflows in year 2106.
     uint64 bountyAmount; // 32-bits compression. Decompressed size is 96 bits. Can be shrinked to uint48 with 40-bits compression in case we need space for another field.
   }
 
   bytes public ARBITRATOR_EXTRA_DATA; // Immutable.
 
-  mapping(uint256 => Claim) public claimStorage; // Key: Address of claim. Claims are not addressed with their identifiers, to enable reusing a storage slot.
-  mapping(uint256 => DisputeData) disputes; // Key: Address of claim. Using claim address for identifying disputes has storage reuse benefit as well. New dispute of the same claim or new dispute a new claim will reuse same dispute storage slot.
+  mapping(uint256 => Claim) public claimStorage; // Key: Storage address of claim. Claims are not addressed with their identifiers, to enable reusing a storage slot.
+  mapping(uint256 => DisputeData) disputes; // Key: Storage address of claim. Using claim address for identifying disputes has storage reuse benefit as well. New dispute of the same claim or new dispute a new claim will reuse same dispute storage slot.
 
   mapping(uint256 => uint256) public override externalIDtoLocalID; // Maps ARBITRATOR dispute ID to claim ID.
 
@@ -113,8 +114,9 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
     emit MetaEvidence(0, _metaevidenceIpfsUri); // Metaevidence is constant. Deploy another contract for another metaevidence.
   }
 
-  /** @notice Initializes a claim. Claim ID is also the IPFS URI. Automatically searches for a vacant slot in storage. Search will be done linearly, so caller is advised to pass a search pointer that points to a vacant slot, to minimize gas cost. You can find an index of such slot by calling findVacantStorageSlot function first.
-      @dev    Do not confuse claimID with claimAddress.
+  /** @notice Initializes a claim.
+      @param _claimID Unique identifier of a claim. Usually an IPFS Content Identifier.
+      @param _searchPointer Starting point of the search. Find a vacant storage slot before calling this function to minimize gas cost.
    */
   function initialize(string calldata _claimID, uint256 _searchPointer) external payable override {
     Claim storage claim;
@@ -133,13 +135,16 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   }
 
   /** @notice Lets you submit evidence as defined in evidence (ERC-1497) standard.
-      @dev Using disputeID as first argument will break IDisputeResolver because it is expecting externalIDtoLocalID[disputeID]. However, this saves 2K gas, and we don't really need Dispute Resolver user interface.
+      @dev    Using disputeID as first argument will break IDisputeResolver because it is expecting externalIDtoLocalID[disputeID]. However, this saves 2K gas, and we don't really need Dispute Resolver user interface.
+      @param _disputeID Dispute ID as in arbitrator.
+      @param _evidenceURI IPFS content identifier of the evidence.
    */
   function submitEvidence(uint256 _disputeID, string calldata _evidenceURI) external override {
     emit Evidence(ARBITRATOR, _disputeID, msg.sender, _evidenceURI);
   }
 
   /** @notice Lets you increase a bounty of a live claim.
+      @param _claimStorageAddress The address of the claim in the storage.
    */
   function increaseBounty(uint256 _claimStorageAddress) external payable override {
     Claim storage claim = claimStorage[_claimStorageAddress];
@@ -151,7 +156,8 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   }
 
   /** @notice Lets a claimant to start withdrawal process.
-      @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process. This value will overflow in year 2106.
+      @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process.
+      @param _claimStorageAddress The address of the claim in the storage.
    */
   function initiateWithdrawal(uint256 _claimStorageAddress) external override {
     Claim storage claim = claimStorage[_claimStorageAddress];
@@ -164,6 +170,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
 
   /** @notice Executes a withdrawal. Can only be executed by claimant.
       @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process.
+      @param _claimStorageAddress The address of the claim in the storage.
    */
   function withdraw(uint256 _claimStorageAddress) external override {
     Claim storage claim = claimStorage[_claimStorageAddress];
@@ -183,6 +190,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
 
   /** @notice Challenges the claim at the given storage address. Follow events to find out which claim resides in which slot.
       @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start another challenge.
+      @param _claimStorageAddress The address of the claim in the storage.
    */
   function challenge(uint256 _claimStorageAddress) public payable override {
     Claim storage claim = claimStorage[_claimStorageAddress];
@@ -203,8 +211,10 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
     emit Challenge(_claimStorageAddress, msg.sender);
   }
 
-  /** @notice Lets you fund a crowdfunded appeal. In case of funding is incomplete, you will be refunded.
+  /** @notice Lets you fund a crowdfunded appeal. In case of funding is incomplete, you will be refunded. Withdrawal will be carried out using withdrawFeesAndRewards function.
       @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process. This value will overflow in year 2106.
+      @param _claimStorageAddress The address of the claim in the storage.
+      @param _supportedRuling The supported ruling in this funding.
    */
   function fundAppeal(uint256 _claimStorageAddress, uint256 _supportedRuling) external payable override returns (bool fullyFunded) {
     DisputeData storage dispute = disputes[_claimStorageAddress];
@@ -234,7 +244,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
       totalCost = basicCost + ((basicCost * (multiplier)) / MULTIPLIER_DENOMINATOR);
     }
 
-    RulingOutcomes supportedRulingOutcome = RulingOutcomes(_supportedRuling);
+    RulingOptions supportedRulingOutcome = RulingOptions(_supportedRuling);
 
     uint256 lastRoundIndex = dispute.rounds.length - 1;
     Round storage lastRound = dispute.rounds[lastRoundIndex];
@@ -254,7 +264,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
       emit RulingFunded(_claimStorageAddress, lastRoundIndex, _supportedRuling);
     }
 
-    if (lastRound.hasPaid[RulingOutcomes.ChallengeFailed] && lastRound.hasPaid[RulingOutcomes.Debunked]) {
+    if (lastRound.hasPaid[RulingOptions.ChallengeFailed] && lastRound.hasPaid[RulingOptions.Debunked]) {
       dispute.rounds.push();
       lastRound.totalClaimableAfterExpenses -= basicCost;
       ARBITRATOR.appeal{value: basicCost}(disputeID, ARBITRATOR_EXTRA_DATA);
@@ -267,22 +277,34 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   }
 
   /** @notice Returns number of possible ruling options of disputes that arise from this contract. Does not count ruling option 0 (tied), as it's implicit.
-      @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process. This value will overflow in year 2106.
    */
   function numberOfRulingOptions(uint256) external view override returns (uint256 count) {
-    return uint256(type(RulingOutcomes).max);
+    return uint256(type(RulingOptions).max);
   }
 
-  /** @notice For arbitrator to call, to execute it's ruling. In case arbitrator rules in favor of challenger, challenger wins the bounty. Otherwise nothing happens.
-      @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process. This value will overflow in year 2106.
+  /** @notice For arbitrator to call, to execute it's ruling. In case arbitrator rules in favor of challenger, challenger wins the bounty. In any case, withdrawalPermittedAt will be reset. If a
+      @param _disputeID The dispute ID as in the arbitrator.
+      @param _ruling The ruling that arbitrator gave.
    */
   function rule(uint256 _disputeID, uint256 _ruling) external override {
     require(IArbitrator(msg.sender) == ARBITRATOR);
 
     uint256 claimAddress = externalIDtoLocalID[_disputeID];
-    Claim storage claim = claimStorage[claimAddress];
+    DisputeData storage dispute = disputes[claimAddress];
+    Round storage lastRound = dispute.rounds[dispute.rounds.length - 1];
 
-    if (RulingOutcomes(_ruling) == RulingOutcomes.Debunked) {
+    // Appeal overrides arbitrator ruling. If a ruling option was not fully funded and the counter ruling option was funded, funded ruling option wins by default.
+    RulingOptions wonByDefault;
+    if (lastRound.hasPaid[RulingOptions.ChallengeFailed] && !lastRound.hasPaid[RulingOptions.Debunked]) {
+      wonByDefault = RulingOptions.ChallengeFailed;
+    } else if (!lastRound.hasPaid[RulingOptions.ChallengeFailed] && lastRound.hasPaid[RulingOptions.Debunked]) {
+      wonByDefault = RulingOptions.Debunked;
+    }
+
+    Claim storage claim = claimStorage[claimAddress];
+    RulingOptions actualRuling = wonByDefault != RulingOptions.Tied ? wonByDefault : RulingOptions(_ruling);
+
+    if (actualRuling == RulingOptions.Debunked) {
       uint256 bounty = uint88(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
       claim.bountyAmount = 0;
 
@@ -295,11 +317,11 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   }
 
   /** @notice Allows to withdraw any rewards or reimbursable fees after the dispute gets resolved. For all rounds at once.
-   *  This function has O(m) time complexity where m is number of rounds.
-   *  It is safe to assume m is always less than 10 as appeal cost growth order is O(2^m).
-   *  @param _claimStorageAddress Address of storage of the claim.
-   *  @param _contributor The address whose rewards to withdraw.
-   *  @param _ruling Ruling that received contributions from contributor.
+      This function has O(m) time complexity where m is number of rounds.
+      It is safe to assume m is always less than 10 as appeal cost growth order is O(2^m).
+      @param _claimStorageAddress Address of storage of the claim.
+      @param _contributor The address whose rewards to withdraw.
+      @param _ruling Ruling that received contributions from contributor.
    */
   function withdrawFeesAndRewardsForAllRounds(
     uint256 _claimStorageAddress,
@@ -315,11 +337,11 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   }
 
   /** @notice Allows to withdraw any reimbursable fees or rewards after the dispute gets solved.
-   *  @param _claimStorageAddress Address of storage of the claim.
-   *  @param _contributor The address whose rewards to withdraw.
-   *  @param _roundNumber The number of the round caller wants to withdraw from.
-   *  @param _ruling Ruling that received contribution from contributor.
-   *  @return amount The amount available to withdraw for given question, contributor, round number and ruling option.
+      @param _claimStorageAddress Address of storage of the claim.
+      @param _contributor The address whose rewards to withdraw.
+      @param _roundNumber The number of the round caller wants to withdraw from.
+      @param _ruling Ruling that received contribution from contributor.
+      @return amount The amount available to withdraw for given question, contributor, round number and ruling option.
    */
   function withdrawFeesAndRewards(
     uint256 _claimStorageAddress,
@@ -336,7 +358,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
     amount = getWithdrawableAmount(round, _contributor, _ruling, ARBITRATOR.currentRuling(dispute.id));
 
     if (amount != 0) {
-      round.contributions[_contributor][RulingOutcomes(_ruling)] = 0;
+      round.contributions[_contributor][RulingOptions(_ruling)] = 0;
       _contributor.send(amount); // Ignoring failure condition deliberately.
       emit Withdrawal(_claimStorageAddress, _roundNumber, _ruling, _contributor, amount);
     }
@@ -390,8 +412,8 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   }
 
   /** @notice Returns the sum of withdrawable amount.
-   *  This function has O(m) time complexity where m is number of rounds.
-   *  It is safe to assume m is always less than 10 as appeal cost growth order is O(m^2).
+      This function has O(m) time complexity where m is number of rounds.
+      It is safe to assume m is always less than 10 as appeal cost growth order is O(m^2).
    */
   function getTotalWithdrawableAmount(
     uint256 _claimStorageAddress,
@@ -417,7 +439,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
     uint256 _ruling,
     uint256 _finalRuling
   ) internal view returns (uint256 amount) {
-    RulingOutcomes givenRuling = RulingOutcomes(_ruling);
+    RulingOptions givenRuling = RulingOptions(_ruling);
 
     if (!_round.hasPaid[givenRuling]) {
       // Allow to reimburse if funding was unsuccessful for this ruling option.
@@ -433,7 +455,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
         // The ultimate winner was not funded in this round. Contributions discounting the appeal fee are reimbursed proportionally.
         amount =
           (_round.contributions[_contributor][givenRuling] * _round.totalClaimableAfterExpenses) /
-          (_round.totalPerRuling[RulingOutcomes.ChallengeFailed] + _round.totalPerRuling[RulingOutcomes.Debunked]);
+          (_round.totalPerRuling[RulingOptions.ChallengeFailed] + _round.totalPerRuling[RulingOptions.Debunked]);
       }
     }
   }
