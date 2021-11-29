@@ -52,12 +52,11 @@ import "./IProveMeWrong.sol";
     @notice Smart contract for a type of curation, where submitted items are on hold until they are withdrawn and the amount of security deposits are determined by submitters.
     @dev    Even though IDisputeResolver is implemented, submitEvidence function violates it.
             Claims are not addressed with their identifiers. That enables us to reuse same storage address for another claim later.
-            Arbitrator and the extra data is fixed. Deploy another contract to change them.
+            Arbitrator and the extra data is fixed. Also the metaevidence. Deploy another contract to change them.
             We prevent claims to get withdrawn immediately. This is to prevent submitter to escape punishment in case someone discovers an argument to debunk the claim.
  */
 contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   IArbitrator public immutable ARBITRATOR;
-  uint256 public immutable CLAIM_WITHDRAWAL_TIMELOCK; // To prevent claimants to act fast and escape punishment.
   uint256 public constant NUMBER_OF_RULING_OPTIONS = 2;
   uint256 public constant NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = 32; // To compress bounty amount to gain space in struct. Lossy compression.
   uint256 public immutable WINNER_STAKE_MULTIPLIER; // Multiplier of the arbitration cost that the winner has to pay as fee stake for a round in basis points.
@@ -105,10 +104,9 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
     uint256 _claimWithdrawalTimelock,
     uint256 _winnerStakeMultiplier,
     uint256 _loserStakeMultiplier
-  ) {
+  ) IProveMeWrong(_claimWithdrawalTimelock) {
     ARBITRATOR = _arbitrator;
     ARBITRATOR_EXTRA_DATA = _arbitratorExtraData;
-    CLAIM_WITHDRAWAL_TIMELOCK = _claimWithdrawalTimelock;
     WINNER_STAKE_MULTIPLIER = _winnerStakeMultiplier;
     LOSER_STAKE_MULTIPLIER = _loserStakeMultiplier;
 
@@ -142,7 +140,6 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   }
 
   /** @notice Lets you increase a bounty of a live claim.
-      @dev Using disputeID as first argument will break IDisputeResolver because it is expecting externalIDtoLocalID[disputeID]. However, this saves 2K gas, and we don't really need Dispute Resolver user interface.
    */
   function increaseBounty(uint256 _claimStorageAddress) external payable override {
     Claim storage claim = claimStorage[_claimStorageAddress];
@@ -346,7 +343,6 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   }
 
   /** @notice Lets you to transfer ownership of a claim. This is useful when you want to change owner account without withdrawing and resubmitting.
-      @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process. This value will overflow in year 2106.
    */
   function transferOwnership(uint256 _claimStorageAddress, address payable _newOwner) external override {
     Claim storage claim = claimStorage[_claimStorageAddress];
