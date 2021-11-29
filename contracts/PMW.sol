@@ -9,6 +9,7 @@
 
 pragma solidity ^0.8.10;
 import "@kleros/dispute-resolver-interface-contract/contracts/IDisputeResolver.sol";
+import "./IProveMeWrong.sol";
 
 /*
 ·---------------------------------------|---------------------------|--------------|-----------------------------·
@@ -54,22 +55,15 @@ import "@kleros/dispute-resolver-interface-contract/contracts/IDisputeResolver.s
             Arbitrator and the extra data is fixed. Deploy another contract to change them.
             We prevent claims to get withdrawn immediately. This is to prevent submitter to escape punishment in case someone discovers an argument to debunk the claim.
  */
-contract ProveMeWrong is IDisputeResolver {
+contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   IArbitrator public immutable ARBITRATOR;
   uint256 public immutable CLAIM_WITHDRAWAL_TIMELOCK; // To prevent claimants to act fast and escape punishment.
   uint256 public constant NUMBER_OF_RULING_OPTIONS = 2;
-  uint256 public constant NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = 40; // To compress bounty amount to gain space in struct. Lossy compression.
+  uint256 public constant NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = 32; // To compress bounty amount to gain space in struct. Lossy compression.
   uint256 public immutable WINNER_STAKE_MULTIPLIER; // Multiplier of the arbitration cost that the winner has to pay as fee stake for a round in basis points.
   uint256 public immutable LOSER_STAKE_MULTIPLIER; // Multiplier of the arbitration cost that the loser has to pay as fee stake for a round in basis points.
   uint256 public constant LOSER_APPEAL_PERIOD_MULTIPLIER = 5000; // Multiplier of the appeal period for losers (any other ruling options) in basis points. The loser is given less time to fund its appeal to defend against last minute appeal funding attacks.
   uint256 public constant MULTIPLIER_DENOMINATOR = 10000; // Denominator for multipliers.
-
-  event NewClaim(string indexed claimID, uint256 claimAddress);
-  event Debunked(uint256 claimAddress);
-  event Withdrew(uint256 claimAddress);
-  event BalanceUpdate(uint256 claimAddress, uint256 newTotal);
-  event TimelockStarted(uint256 claimAddress);
-  event Challenge(uint256 indexed claimAddress, address challanger);
 
   enum RulingOutcomes {
     Tied,
@@ -80,8 +74,7 @@ contract ProveMeWrong is IDisputeResolver {
   struct DisputeData {
     uint256 id;
     address payable challenger;
-    uint32 roundStartIndex; // Since we are reusing the same storage address, we need to prevent round data leaking from a previous dispute.
-    uint64 freeSpace; // Unused.
+    uint96 roundStartIndex; // Since we are reusing the same storage address, we need to prevent round data leaking from a previous dispute. Can be shrinked to uint32 if we need space for another field.
     Round[] rounds; // Tracks each appeal round of a dispute.
   }
 
@@ -94,9 +87,8 @@ contract ProveMeWrong is IDisputeResolver {
 
   struct Claim {
     address payable owner; // 160 bit
-    uint16 freeSpace; // Unused.
     uint32 withdrawalPermittedAt; // Overflows in year 2106
-    uint48 bountyAmount; // 40-bits compression. Decompressed size is 88 bits.
+    uint64 bountyAmount; // 32-bits compression. Decompressed size is 96 bits. Can be shrinked to uint48 with 40-bits compression in case we need space for another field.
   }
 
   bytes public ARBITRATOR_EXTRA_DATA; // Immutable.
@@ -120,20 +112,20 @@ contract ProveMeWrong is IDisputeResolver {
     WINNER_STAKE_MULTIPLIER = _winnerStakeMultiplier;
     LOSER_STAKE_MULTIPLIER = _loserStakeMultiplier;
 
-    emit MetaEvidence(0, _metaevidenceIpfsUri);
+    emit MetaEvidence(0, _metaevidenceIpfsUri); // Metaevidence is constant. Deploy another contract for another metaevidence.
   }
 
   /** @notice Initializes a claim. Claim ID is also the IPFS URI. Automatically searches for a vacant slot in storage. Search will be done linearly, so caller is advised to pass a search pointer that points to a vacant slot, to minimize gas cost. You can find an index of such slot by calling findVacantStorageSlot function first.
       @dev    Do not confuse claimID with claimAddress.
    */
-  function initialize(string calldata _claimID, uint256 _searchPointer) external payable {
+  function initialize(string calldata _claimID, uint256 _searchPointer) external payable override {
     Claim storage claim;
     do {
       claim = claimStorage[_searchPointer++];
     } while (claim.bountyAmount != 0);
 
     claim.owner = payable(msg.sender);
-    claim.bountyAmount = uint48(msg.value >> NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
+    claim.bountyAmount = uint64(msg.value >> NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
 
     require(claim.bountyAmount > 0, "You can't initialize a claim without putting a bounty.");
 
@@ -152,11 +144,11 @@ contract ProveMeWrong is IDisputeResolver {
   /** @notice Lets you increase a bounty of a live claim.
       @dev Using disputeID as first argument will break IDisputeResolver because it is expecting externalIDtoLocalID[disputeID]. However, this saves 2K gas, and we don't really need Dispute Resolver user interface.
    */
-  function increaseBounty(uint256 _claimStorageAddress) external payable {
+  function increaseBounty(uint256 _claimStorageAddress) external payable override {
     Claim storage claim = claimStorage[_claimStorageAddress];
     require(msg.sender == claim.owner, "Only claimant can increase bounty of a claim."); // To prevent mistakes.
 
-    claim.bountyAmount += uint48(msg.value >> NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
+    claim.bountyAmount += uint64(msg.value >> NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
 
     emit BalanceUpdate(_claimStorageAddress, uint256(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
   }
@@ -164,7 +156,7 @@ contract ProveMeWrong is IDisputeResolver {
   /** @notice Lets a claimant to start withdrawal process.
       @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process. This value will overflow in year 2106.
    */
-  function initiateWithdrawal(uint256 _claimStorageAddress) external {
+  function initiateWithdrawal(uint256 _claimStorageAddress) external override {
     Claim storage claim = claimStorage[_claimStorageAddress];
     require(msg.sender == claim.owner, "Only claimant can withdraw a claim.");
     require(claim.withdrawalPermittedAt == 0, "Withdrawal already initiated or there is a challenge.");
@@ -174,9 +166,9 @@ contract ProveMeWrong is IDisputeResolver {
   }
 
   /** @notice Executes a withdrawal. Can only be executed by claimant.
-      @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process. This value will overflow in year 2106.
+      @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process.
    */
-  function withdraw(uint256 _claimStorageAddress) external {
+  function withdraw(uint256 _claimStorageAddress) external override {
     Claim storage claim = claimStorage[_claimStorageAddress];
 
     require(msg.sender == claim.owner, "Only claimant can withdraw a claim.");
@@ -193,9 +185,9 @@ contract ProveMeWrong is IDisputeResolver {
   }
 
   /** @notice Challenges the claim at the given storage address. Follow events to find out which claim resides in which slot.
-      @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process. This value will overflow in year 2106.
+      @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start another challenge.
    */
-  function challenge(uint256 _claimStorageAddress) public payable {
+  function challenge(uint256 _claimStorageAddress) public payable override {
     Claim storage claim = claimStorage[_claimStorageAddress];
     require(claim.withdrawalPermittedAt != type(uint32).max, "There is an ongoing challenge.");
     claim.withdrawalPermittedAt = type(uint32).max; // Mark as challenged.
@@ -210,7 +202,7 @@ contract ProveMeWrong is IDisputeResolver {
     disputes[_claimStorageAddress].roundStartIndex = uint32(disputes[_claimStorageAddress].rounds.length);
     disputes[_claimStorageAddress].rounds.push();
 
-    emit Dispute(ARBITRATOR, disputeID, claim.freeSpace, disputeID);
+    emit Dispute(ARBITRATOR, disputeID, 0, disputeID);
     emit Challenge(_claimStorageAddress, msg.sender);
   }
 
@@ -356,7 +348,7 @@ contract ProveMeWrong is IDisputeResolver {
   /** @notice Lets you to transfer ownership of a claim. This is useful when you want to change owner account without withdrawing and resubmitting.
       @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process. This value will overflow in year 2106.
    */
-  function transferOwnership(uint256 _claimStorageAddress, address payable _newOwner) external {
+  function transferOwnership(uint256 _claimStorageAddress, address payable _newOwner) external override {
     Claim storage claim = claimStorage[_claimStorageAddress];
     require(msg.sender == claim.owner, "Only claimant can transfer ownership.");
     claim.owner = _newOwner;
@@ -364,19 +356,19 @@ contract ProveMeWrong is IDisputeResolver {
 
   /** @notice Returns the total amount needs to be paid to challenge a claim.
    */
-  function challengeFee() external view returns (uint256 arbitrationFee) {
+  function challengeFee() external view override returns (uint256 arbitrationFee) {
     arbitrationFee = ARBITRATOR.arbitrationCost(ARBITRATOR_EXTRA_DATA);
   }
 
   /** @notice Returns the total amount needs to be paid to appeal a dispute.
    */
-  function appealFee(uint256 _disputeID) external view returns (uint256 arbitrationFee) {
+  function appealFee(uint256 _disputeID) external view override returns (uint256 arbitrationFee) {
     arbitrationFee = ARBITRATOR.appealCost(_disputeID, ARBITRATOR_EXTRA_DATA);
   }
 
   /** @notice Helper function to find a vacant slot for claim. Use this function before calling initialize to minimize your gas cost.
    */
-  function findVacantStorageSlot(uint256 _searchPointer) external view returns (uint256 vacantSlotIndex) {
+  function findVacantStorageSlot(uint256 _searchPointer) external view override returns (uint256 vacantSlotIndex) {
     Claim storage claim;
     do {
       claim = claimStorage[_searchPointer++];
