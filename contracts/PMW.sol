@@ -74,7 +74,8 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   struct DisputeData {
     uint256 id; // As in arbitrator.
     address payable challenger;
-    uint96 roundStartIndex; // Since we are reusing the same storage address, we need to prevent round data leaking from a previous dispute. Can be shrinked to uint32 if we need space for another field.
+    RulingOptions outcome;
+    uint88 roundStartIndex; // Since we are reusing the same storage address, we need to prevent round data leaking from a previous dispute. Can be shrinked to uint32 if we need space for another field.
     Round[] rounds; // Tracks each appeal round of a dispute.
   }
 
@@ -295,8 +296,10 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
       wonByDefault = RulingOptions.Debunked;
     }
 
-    Claim storage claim = claimStorage[claimAddress];
     RulingOptions actualRuling = wonByDefault != RulingOptions.Tied ? wonByDefault : RulingOptions(_ruling);
+    dispute.outcome = actualRuling;
+
+    Claim storage claim = claimStorage[claimAddress];
 
     if (actualRuling == RulingOptions.Debunked) {
       uint256 bounty = uint88(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
@@ -349,7 +352,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
 
     Round storage round = dispute.rounds[_roundNumber];
 
-    amount = getWithdrawableAmount(round, _contributor, _ruling, ARBITRATOR.currentRuling(dispute.id));
+    amount = getWithdrawableAmount(round, _contributor, _ruling, uint256(dispute.outcome));
 
     if (amount != 0) {
       round.contributions[_contributor][RulingOptions(_ruling)] = 0;
