@@ -40,7 +40,7 @@ describe("Prove Me Wrong", () => {
     it("Should initialize a new claim", async () => {
       const args = [crypto.randomBytes(30).toString("hex"), 0];
 
-      await expect(pmw.connect(deployer).initialize(...args, { value: TEN_ETH }))
+      await expect(pmw.connect(deployer).initializeClaim(...args, { value: TEN_ETH }))
         .to.emit(pmw, "NewClaim")
         .withArgs(...args.slice(0, 2));
     });
@@ -58,7 +58,7 @@ describe("Prove Me Wrong", () => {
     it("Should initialize and fund a new claim", async () => {
       const args = { claimID: crypto.randomBytes(30).toString("hex"), claimAddress: 0 };
 
-      await expect(pmw.connect(claimant).initialize(args.claimID, args.claimAddress, { value: TEN_ETH }))
+      await expect(pmw.connect(claimant).initializeClaim(args.claimID, args.claimAddress, { value: TEN_ETH }))
         .to.emit(pmw, "NewClaim")
         .withArgs(args.claimID, args.claimAddress)
         .to.emit(pmw, "BalanceUpdate");
@@ -75,7 +75,7 @@ describe("Prove Me Wrong", () => {
 
       const vacantSlotIndex = await pmw.connect(deployer).findVacantStorageSlot(0);
 
-      expect(await pmw.connect(deployer).initialize(args.claimID, args.claimAddress, { value: APPROX_ONE_ETH }))
+      expect(await pmw.connect(deployer).initializeClaim(args.claimID, args.claimAddress, { value: APPROX_ONE_ETH }))
         .to.emit(pmw, "NewClaim")
         .withArgs(args.claimID, vacantSlotIndex);
     });
@@ -175,7 +175,7 @@ describe("Prove Me Wrong", () => {
     it("Should initialize and fund a new claim", async () => {
       const args = { claimID: crypto.randomBytes(30).toString("hex"), claimAddress: 0 };
 
-      await expect(pmw.connect(claimant).initialize(args.claimID, args.claimAddress, { value: TEN_ETH }))
+      await expect(pmw.connect(claimant).initializeClaim(args.claimID, args.claimAddress, { value: TEN_ETH }))
         .to.emit(pmw, "NewClaim")
         .withArgs(args.claimID, args.claimAddress)
         .to.emit(pmw, "BalanceUpdate");

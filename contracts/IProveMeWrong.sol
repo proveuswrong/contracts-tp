@@ -35,7 +35,7 @@ abstract contract IProveMeWrong {
       @param _claimID Unique identifier of a claim. Usually an IPFS content identifier.
       @param _searchPointer Starting point of the search. Find a vacant storage slot before calling this function to minimize gas cost.
    */
-  function initialize(string calldata _claimID, uint256 _searchPointer) external payable virtual;
+  function initializeClaim(string calldata _claimID, uint256 _searchPointer) external payable virtual;
 
   /** @notice Lets claimant to increase a bounty of a live claim. Emits BalanceUpdate.
       @param _claimStorageAddress The address of the claim in the storage.

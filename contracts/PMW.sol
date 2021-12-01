@@ -119,7 +119,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
       @param _claimID Unique identifier of a claim. Usually an IPFS Content Identifier.
       @param _searchPointer Starting point of the search. Find a vacant storage slot before calling this function to minimize gas cost.
    */
-  function initialize(string calldata _claimID, uint256 _searchPointer) external payable override {
+  function initializeClaim(string calldata _claimID, uint256 _searchPointer) external payable override {
     Claim storage claim;
     do {
       claim = claimStorage[_searchPointer++];
@@ -448,7 +448,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
         amount = _round.totalPerRuling[givenRuling] > 0
           ? (_round.contributions[_contributor][givenRuling] * _round.totalClaimableAfterExpenses) / _round.totalPerRuling[givenRuling]
           : 0;
-      } else if (!_round.hasPaid[_finalRuling]) {
+      } else if (!_round.hasPaid[RulingOptions(_finalRuling)]) {
         // The ultimate winner was not funded in this round. Contributions discounting the appeal fee are reimbursed proportionally.
         amount =
           (_round.contributions[_contributor][givenRuling] * _round.totalClaimableAfterExpenses) /
