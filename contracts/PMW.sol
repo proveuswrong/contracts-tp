@@ -448,7 +448,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
         amount = _round.totalPerRuling[givenRuling] > 0
           ? (_round.contributions[_contributor][givenRuling] * _round.totalClaimableAfterExpenses) / _round.totalPerRuling[givenRuling]
           : 0;
-      } else if (!_round.hasPaid[givenRuling]) {
+      } else if (!_round.hasPaid[_finalRuling]) {
         // The ultimate winner was not funded in this round. Contributions discounting the appeal fee are reimbursed proportionally.
         amount =
           (_round.contributions[_contributor][givenRuling] * _round.totalClaimableAfterExpenses) /
