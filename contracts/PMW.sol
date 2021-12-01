@@ -276,12 +276,6 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
     return lastRound.hasPaid[supportedRulingOutcome];
   }
 
-  /** @notice Returns number of possible ruling options of disputes that arise from this contract. Does not count ruling option 0 (tied), as it's implicit.
-   */
-  function numberOfRulingOptions(uint256) external view override returns (uint256 count) {
-    return uint256(type(RulingOptions).max);
-  }
-
   /** @notice For arbitrator to call, to execute it's ruling. In case arbitrator rules in favor of challenger, challenger wins the bounty. In any case, withdrawalPermittedAt will be reset. If a
       @param _disputeID The dispute ID as in the arbitrator.
       @param _ruling The ruling that arbitrator gave.
@@ -295,9 +289,9 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
 
     // Appeal overrides arbitrator ruling. If a ruling option was not fully funded and the counter ruling option was funded, funded ruling option wins by default.
     RulingOptions wonByDefault;
-    if (lastRound.hasPaid[RulingOptions.ChallengeFailed] && !lastRound.hasPaid[RulingOptions.Debunked]) {
+    if (lastRound.hasPaid[RulingOptions.ChallengeFailed]) {
       wonByDefault = RulingOptions.ChallengeFailed;
-    } else if (!lastRound.hasPaid[RulingOptions.ChallengeFailed] && lastRound.hasPaid[RulingOptions.Debunked]) {
+    } else if (!lastRound.hasPaid[RulingOptions.ChallengeFailed]) {
       wonByDefault = RulingOptions.Debunked;
     }
 
@@ -458,5 +452,11 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
           (_round.totalPerRuling[RulingOptions.ChallengeFailed] + _round.totalPerRuling[RulingOptions.Debunked]);
       }
     }
+  }
+
+  /** @notice Returns number of possible ruling options of disputes that arise from this contract. Does not count ruling option 0 (tied), as it's implicit.
+   */
+  function numberOfRulingOptions(uint256) external pure override returns (uint256 count) {
+    return uint256(type(RulingOptions).max);
   }
 }
