@@ -253,9 +253,15 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
     Round storage lastRound = dispute.rounds[lastRoundIndex];
     require(!lastRound.hasPaid[supportedRulingOutcome], "Appeal fee has already been paid.");
 
-    uint256 contribution = totalCost - (lastRound.totalPerRuling[supportedRulingOutcome]) > msg.value
-      ? msg.value
-      : totalCost - (lastRound.totalPerRuling[supportedRulingOutcome]);
+    uint256 contribution;
+    uint256 paidSoFar = lastRound.totalPerRuling[supportedRulingOutcome];
+
+    if (paidSoFar >= totalCost) {
+      contribution = 0;
+    } else {
+      contribution = totalCost - paidSoFar > msg.value ? msg.value : totalCost - paidSoFar;
+    }
+
     emit Contribution(_claimStorageAddress, lastRoundIndex, uint256(_supportedRuling), msg.sender, contribution);
 
     lastRound.contributions[msg.sender][supportedRulingOutcome] += contribution;
