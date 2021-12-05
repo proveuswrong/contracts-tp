@@ -17,47 +17,46 @@ import "./IProveMeWrong.sol";
 ·---------------------------------------|---------------------------|--------------|-----------------------------·
 |         Solc version: 0.8.10          ·  Optimizer enabled: true  ·  Runs: 1000  ·  Block limit: 30000000 gas  │
 ········································|···························|··············|······························
-|  Methods                              ·               100 gwei/gas               ·       4007.59 usd/eth       │
+|  Methods                              ·               100 gwei/gas               ·       4238.52 usd/eth       │
 ·················|······················|·············|·············|··············|···············|··············
 |  Contract      ·  Method              ·  Min        ·  Max        ·  Avg         ·  # calls      ·  usd (avg)  │
 ·················|······················|·············|·············|··············|···············|··············
-|  Arbitrator    ·  createDispute       ·      82579  ·      99679  ·       84289  ·           20  ·      33.78  │
+|  Arbitrator    ·  createDispute       ·      82579  ·      99679  ·       84289  ·           20  ·      35.73  │
 ·················|······················|·············|·············|··············|···············|··············
-|  Arbitrator    ·  executeRuling       ·      67732  ·      95532  ·       76999  ·            3  ·      30.86  │
+|  Arbitrator    ·  executeRuling       ·          -  ·          -  ·       66697  ·            3  ·      28.27  │
 ·················|······················|·············|·············|··············|···············|··············
-|  Arbitrator    ·  giveRuling          ·      78640  ·      98528  ·       93556  ·            4  ·      37.49  │
+|  Arbitrator    ·  giveRuling          ·      78640  ·      98528  ·       93556  ·            4  ·      39.65  │
 ·················|······················|·············|·············|··············|···············|··············
-|  ProveMeWrong  ·  challenge           ·     120623  ·     171923  ·      154823  ·            3  ·      62.05  │
+|  ProveMeWrong  ·  challenge           ·          -  ·          -  ·      147934  ·            3  ·      62.70  │
 ·················|······················|·············|·············|··············|···············|··············
-|  ProveMeWrong  ·  fundAppeal          ·     135529  ·     140590  ·      137553  ·            5  ·      55.13  │
+|  ProveMeWrong  ·  fundAppeal          ·     135482  ·     140537  ·      137504  ·            5  ·      58.28  │
 ·················|······················|·············|·············|··············|···············|··············
-|  ProveMeWrong  ·  increaseBounty      ·          -  ·          -  ·       28519  ·            2  ·      11.43  │
+|  ProveMeWrong  ·  increaseBounty      ·          -  ·          -  ·       28629  ·            2  ·      12.13  │
 ·················|······················|·············|·············|··············|···············|··············
-|  ProveMeWrong  ·  initializeClaim     ·      31527  ·      50904  ·       38822  ·           10  ·      15.56  │
+|  ProveMeWrong  ·  initializeClaim     ·      31714  ·      51143  ·       39020  ·           10  ·      16.54  │
 ·················|······················|·············|·············|··············|···············|··············
-|  ProveMeWrong  ·  initiateWithdrawal  ·          -  ·          -  ·       28002  ·            4  ·      11.22  │
+|  ProveMeWrong  ·  initiateWithdrawal  ·          -  ·          -  ·       28153  ·            4  ·      11.93  │
 ·················|······················|·············|·············|··············|···············|··············
-|  ProveMeWrong  ·  submitEvidence      ·          -  ·          -  ·       26094  ·            2  ·      10.46  │
+|  ProveMeWrong  ·  submitEvidence      ·          -  ·          -  ·       26116  ·            2  ·      11.07  │
 ·················|······················|·············|·············|··············|···············|··············
-|  ProveMeWrong  ·  withdraw            ·      28297  ·      34997  ·       30530  ·            3  ·      12.24  │
+|  ProveMeWrong  ·  withdraw            ·      28394  ·      35094  ·       30627  ·            3  ·      12.98  │
 ·················|······················|·············|·············|··············|···············|··············
 |  Deployments                          ·                                          ·  % of limit   ·             │
 ········································|·············|·············|··············|···············|··············
-|  Arbitrator                           ·          -  ·          -  ·      877877  ·        2.9 %  ·     351.82  │
+|  Arbitrator                           ·          -  ·          -  ·      877877  ·        2.9 %  ·     372.09  │
 ········································|·············|·············|··············|···············|··············
-|  ProveMeWrong                         ·          -  ·          -  ·     2431020  ·        8.1 %  ·     974.25  │
+|  ProveMeWrong                         ·          -  ·          -  ·     2401363  ·          8 %  ·    1017.82  │
 ·---------------------------------------|-------------|-------------|--------------|---------------|-------------·
 */
 
 /** @title  Prove Me Wrong
     @notice Smart contract for a type of curation, where submitted items are on hold until they are withdrawn and the amount of security deposits are determined by submitters.
-    @dev    Even though IDisputeResolver is implemented, submitEvidence function violates it.
-            Claims are not addressed with their identifiers. That enables us to reuse same storage address for another claim later.
+    @dev    Claims are not addressed with their identifiers. That enables us to reuse same storage address for another claim later.
             Arbitrator and the extra data is fixed. Also the metaevidence. Deploy another contract to change them.
             We prevent claims to get withdrawn immediately. This is to prevent submitter to escape punishment in case someone discovers an argument to debunk the claim.
             Bounty amounts are compressed with a lossy compression method to save on storage cost.
  */
-contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
+contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
   IArbitrator public immutable ARBITRATOR;
   uint256 public constant NUMBER_OF_RULING_OPTIONS = 2;
   uint256 public constant NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = 32; // To compress bounty amount to gain space in struct. Lossy compression.
@@ -66,17 +65,11 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   uint256 public constant LOSER_APPEAL_PERIOD_MULTIPLIER = 5000; // Multiplier of the appeal period for losers (any other ruling options) in basis points. The loser is given less time to fund its appeal to defend against last minute appeal funding attacks.
   uint256 public constant MULTIPLIER_DENOMINATOR = 10000; // Denominator for multipliers.
 
-  enum RulingOptions {
-    Tied,
-    ChallengeFailed,
-    Debunked
-  }
-
   struct DisputeData {
-    uint256 id; // As in arbitrator.
     address payable challenger;
     RulingOptions outcome;
-    uint88 roundStartIndex; // Since we are reusing the same storage address, we need to prevent round data leaking from a previous dispute. Can be shrinked to uint32 if we need space for another field.
+    bool resolved; // To remove dependency to disputeStatus function of arbitrator. This function is likely to be removed in Kleros v2.
+    uint80 claimStorageAddress; // 2^16 is sufficient. Just using extra available space.
     Round[] rounds; // Tracks each appeal round of a dispute.
   }
 
@@ -95,10 +88,8 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
 
   bytes public ARBITRATOR_EXTRA_DATA; // Immutable.
 
-  mapping(uint256 => Claim) public claimStorage; // Key: Storage address of claim. Claims are not addressed with their identifiers, to enable reusing a storage slot.
-  mapping(uint256 => DisputeData) disputes; // Key: Storage address of claim. Using claim address for identifying disputes has storage reuse benefit as well. New dispute of the same claim or new dispute a new claim will reuse same dispute storage slot.
-
-  mapping(uint256 => uint256) public override externalIDtoLocalID; // Maps ARBITRATOR dispute ID to claim ID.
+  mapping(uint80 => Claim) public claimStorage; // Key: Storage address of claim. Claims are not addressed with their identifiers, to enable reusing a storage slot.
+  mapping(uint256 => DisputeData) disputes; // Key: Dispute ID as in arbitrator.
 
   constructor(
     IArbitrator _arbitrator,
@@ -117,10 +108,10 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   }
 
   /** @notice Initializes a claim.
-      @param _claimID Unique identifier of a claim. Usually an IPFS Content Identifier.
+      @param _claimID Unique identifier of a claim. Usually an IPFS content identifier.
       @param _searchPointer Starting point of the search. Find a vacant storage slot before calling this function to minimize gas cost.
    */
-  function initializeClaim(string calldata _claimID, uint256 _searchPointer) external payable override {
+  function initializeClaim(string calldata _claimID, uint80 _searchPointer) external payable override {
     Claim storage claim;
     do {
       claim = claimStorage[_searchPointer++];
@@ -131,13 +122,12 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
 
     require(claim.bountyAmount > 0, "You can't initialize a claim without putting a bounty.");
 
-    uint256 claimAddress = _searchPointer - 1;
-    emit NewClaim(_claimID, claimAddress);
-    emit BalanceUpdate(claimAddress, uint256(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
+    uint256 claimStorageAddress = _searchPointer - 1;
+    emit NewClaim(_claimID, claimStorageAddress);
+    emit BalanceUpdate(claimStorageAddress, uint256(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
   }
 
   /** @notice Lets you submit evidence as defined in evidence (ERC-1497) standard.
-      @dev    Using disputeID as first argument will break IDisputeResolver because it is expecting externalIDtoLocalID[disputeID]. However, this saves 2K gas, and we don't really need Dispute Resolver user interface.
       @param _disputeID Dispute ID as in arbitrator.
       @param _evidenceURI IPFS content identifier of the evidence.
    */
@@ -148,7 +138,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   /** @notice Lets you increase a bounty of a live claim.
       @param _claimStorageAddress The address of the claim in the storage.
    */
-  function increaseBounty(uint256 _claimStorageAddress) external payable override {
+  function increaseBounty(uint80 _claimStorageAddress) external payable override {
     Claim storage claim = claimStorage[_claimStorageAddress];
     require(msg.sender == claim.owner, "Only claimant can increase bounty of a claim."); // To prevent mistakes.
 
@@ -161,7 +151,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
       @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process.
       @param _claimStorageAddress The address of the claim in the storage.
    */
-  function initiateWithdrawal(uint256 _claimStorageAddress) external override {
+  function initiateWithdrawal(uint80 _claimStorageAddress) external override {
     Claim storage claim = claimStorage[_claimStorageAddress];
     require(msg.sender == claim.owner, "Only claimant can withdraw a claim.");
     require(claim.withdrawalPermittedAt == 0, "Withdrawal already initiated or there is a challenge.");
@@ -174,18 +164,16 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
       @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process.
       @param _claimStorageAddress The address of the claim in the storage.
    */
-  function withdraw(uint256 _claimStorageAddress) external override {
+  function withdraw(uint80 _claimStorageAddress) external override {
     Claim storage claim = claimStorage[_claimStorageAddress];
 
     require(msg.sender == claim.owner, "Only claimant can withdraw a claim.");
     require(claim.withdrawalPermittedAt != 0, "You need to initiate withdrawal first.");
     require(claim.withdrawalPermittedAt <= block.timestamp, "You need to wait for timelock or wait until the challenge ends.");
 
-    uint256 withdrawal = uint88(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
+    uint256 withdrawal = uint96(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
     claim.bountyAmount = 0; // This is critical to reset.
     claim.withdrawalPermittedAt = 0; // This too, otherwise new claim inside the same slot can withdraw instantly.
-    // We could reset claim.owner as well, this refunds 4K gas. But not resetting it here and let it to be reset
-    // during initialization of a claim using a previously used storage slot provides 17K gas refund. So net gain is 13K.
     payable(msg.sender).transfer(withdrawal);
     emit Withdrew(_claimStorageAddress);
   }
@@ -194,7 +182,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
       @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start another challenge.
       @param _claimStorageAddress The address of the claim in the storage.
    */
-  function challenge(uint256 _claimStorageAddress) public payable override {
+  function challenge(uint80 _claimStorageAddress) public payable override {
     Claim storage claim = claimStorage[_claimStorageAddress];
     require(claim.withdrawalPermittedAt != type(uint32).max, "There is an ongoing challenge.");
     claim.withdrawalPermittedAt = type(uint32).max; // Mark as challenged.
@@ -202,30 +190,29 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
     require(claim.bountyAmount > 0, "Nothing to challenge."); // To prevent mistakes.
 
     uint256 disputeID = ARBITRATOR.createDispute{value: msg.value}(NUMBER_OF_RULING_OPTIONS, ARBITRATOR_EXTRA_DATA);
-    externalIDtoLocalID[disputeID] = _claimStorageAddress;
 
-    disputes[_claimStorageAddress].id = disputeID;
-    disputes[_claimStorageAddress].challenger = payable(msg.sender);
-    disputes[_claimStorageAddress].roundStartIndex = uint32(disputes[_claimStorageAddress].rounds.length);
-    disputes[_claimStorageAddress].rounds.push();
+    disputes[disputeID].challenger = payable(msg.sender);
+    disputes[disputeID].rounds.push();
+    disputes[disputeID].claimStorageAddress = uint80(_claimStorageAddress);
 
+    // Evidence group ID is dispute ID.
     emit Dispute(ARBITRATOR, disputeID, 0, disputeID);
-    emit Challenge(_claimStorageAddress, msg.sender);
+    // This event links the dispute to a claim storage address.
+    emit Challenge(_claimStorageAddress, msg.sender, disputeID);
   }
 
   /** @notice Lets you fund a crowdfunded appeal. In case of funding is incomplete, you will be refunded. Withdrawal will be carried out using withdrawFeesAndRewards function.
-      @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process. This value will overflow in year 2106.
-      @param _claimStorageAddress The address of the claim in the storage.
+      @param _disputeID The dispute ID as in the arbitrator.
       @param _supportedRuling The supported ruling in this funding.
    */
-  function fundAppeal(uint256 _claimStorageAddress, uint256 _supportedRuling) external payable override returns (bool fullyFunded) {
-    DisputeData storage dispute = disputes[_claimStorageAddress];
-    uint256 disputeID = dispute.id;
-    uint256 currentRuling = ARBITRATOR.currentRuling(disputeID);
+  function fundAppeal(uint256 _disputeID, RulingOptions _supportedRuling) external payable override returns (bool fullyFunded) {
+    DisputeData storage dispute = disputes[_disputeID];
+
+    RulingOptions currentRuling = RulingOptions(ARBITRATOR.currentRuling(_disputeID));
     uint256 basicCost;
     uint256 totalCost;
     {
-      (uint256 appealWindowStart, uint256 appealWindowEnd) = ARBITRATOR.appealPeriod(disputeID);
+      (uint256 appealWindowStart, uint256 appealWindowEnd) = ARBITRATOR.appealPeriod(_disputeID);
 
       uint256 multiplier;
 
@@ -242,7 +229,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
         multiplier = LOSER_STAKE_MULTIPLIER;
       }
 
-      basicCost = ARBITRATOR.appealCost(disputeID, ARBITRATOR_EXTRA_DATA);
+      basicCost = ARBITRATOR.appealCost(_disputeID, ARBITRATOR_EXTRA_DATA);
       totalCost = basicCost + ((basicCost * (multiplier)) / MULTIPLIER_DENOMINATOR);
     }
 
@@ -253,15 +240,17 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
     require(!lastRound.hasPaid[supportedRulingOutcome], "Appeal fee has already been paid.");
 
     uint256 contribution;
-    uint256 paidSoFar = lastRound.totalPerRuling[supportedRulingOutcome];
+    {
+      uint256 paidSoFar = lastRound.totalPerRuling[supportedRulingOutcome];
 
-    if (paidSoFar >= totalCost) {
-      contribution = 0; // This can happen if arbitration fee gets lowered in between contributions.
-    } else {
-      contribution = totalCost - paidSoFar > msg.value ? msg.value : totalCost - paidSoFar;
+      if (paidSoFar >= totalCost) {
+        contribution = 0; // This can happen if arbitration fee gets lowered in between contributions.
+      } else {
+        contribution = totalCost - paidSoFar > msg.value ? msg.value : totalCost - paidSoFar;
+      }
     }
 
-    emit Contribution(_claimStorageAddress, lastRoundIndex, uint256(_supportedRuling), msg.sender, contribution);
+    emit Contribution(_disputeID, lastRoundIndex, _supportedRuling, msg.sender, contribution);
 
     lastRound.contributions[msg.sender][supportedRulingOutcome] += contribution;
     lastRound.totalPerRuling[supportedRulingOutcome] += contribution;
@@ -269,30 +258,29 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
     if (lastRound.totalPerRuling[supportedRulingOutcome] >= totalCost) {
       lastRound.totalClaimableAfterExpenses += lastRound.totalPerRuling[supportedRulingOutcome];
       lastRound.hasPaid[supportedRulingOutcome] = true;
-      emit RulingFunded(_claimStorageAddress, lastRoundIndex, _supportedRuling);
+      emit RulingFunded(_disputeID, lastRoundIndex, _supportedRuling);
     }
 
     if (lastRound.hasPaid[RulingOptions.ChallengeFailed] && lastRound.hasPaid[RulingOptions.Debunked]) {
       dispute.rounds.push();
       lastRound.totalClaimableAfterExpenses -= basicCost;
-      ARBITRATOR.appeal{value: basicCost}(disputeID, ARBITRATOR_EXTRA_DATA);
+      ARBITRATOR.appeal{value: basicCost}(_disputeID, ARBITRATOR_EXTRA_DATA);
     }
 
-    // Sending extra value back to contributor. Note that it's impossible to deny the service by rejecting transfer on purpose, because the caller and beneficiary is the same.
-    if (msg.value - contribution > 0) payable(msg.sender).transfer(msg.value - contribution);
+    // Ignoring failure condition deliberately.
+    if (msg.value - contribution > 0) payable(msg.sender).send(msg.value - contribution);
 
     return lastRound.hasPaid[supportedRulingOutcome];
   }
 
-  /** @notice For arbitrator to call, to execute it's ruling. In case arbitrator rules in favor of challenger, challenger wins the bounty. In any case, withdrawalPermittedAt will be reset. If a
+  /** @notice For arbitrator to call, to execute it's ruling. In case arbitrator rules in favor of challenger, challenger wins the bounty. In any case, withdrawalPermittedAt will be reset.
       @param _disputeID The dispute ID as in the arbitrator.
       @param _ruling The ruling that arbitrator gave.
    */
   function rule(uint256 _disputeID, uint256 _ruling) external override {
     require(IArbitrator(msg.sender) == ARBITRATOR);
 
-    uint256 claimAddress = externalIDtoLocalID[_disputeID];
-    DisputeData storage dispute = disputes[claimAddress];
+    DisputeData storage dispute = disputes[_disputeID];
     Round storage lastRound = dispute.rounds[dispute.rounds.length - 1];
 
     // Appeal overrides arbitrator ruling. If a ruling option was not fully funded and the counter ruling option was funded, funded ruling option wins by default.
@@ -306,16 +294,19 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
     RulingOptions actualRuling = wonByDefault != RulingOptions.Tied ? wonByDefault : RulingOptions(_ruling);
     dispute.outcome = actualRuling;
 
-    Claim storage claim = claimStorage[claimAddress];
+    uint80 claimStorageAddress = dispute.claimStorageAddress;
+
+    Claim storage claim = claimStorage[claimStorageAddress];
 
     if (actualRuling == RulingOptions.Debunked) {
-      uint256 bounty = uint88(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
+      uint256 bounty = uint96(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
       claim.bountyAmount = 0;
 
-      emit Debunked(claimAddress);
+      emit Debunked(claimStorageAddress);
       disputes[_disputeID].challenger.send(bounty); // Ignoring failure condition deliberately.
     } // In case of tie, claim stands.
     claim.withdrawalPermittedAt = 0; // Unmark as challenged.
+    dispute.resolved = true;
 
     emit Ruling(IArbitrator(msg.sender), _disputeID, _ruling);
   }
@@ -323,54 +314,54 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   /** @notice Allows to withdraw any rewards or reimbursable fees after the dispute gets resolved. For all rounds at once.
       This function has O(m) time complexity where m is number of rounds.
       It is safe to assume m is always less than 10 as appeal cost growth order is O(2^m).
-      @param _claimStorageAddress Address of storage of the claim.
+      @param _disputeID ID of the dispute as in arbitrator.
       @param _contributor The address whose rewards to withdraw.
       @param _ruling Ruling that received contributions from contributor.
    */
   function withdrawFeesAndRewardsForAllRounds(
-    uint256 _claimStorageAddress,
+    uint256 _disputeID,
     address payable _contributor,
-    uint256 _ruling
+    RulingOptions _ruling
   ) external override {
-    DisputeData storage dispute = disputes[_claimStorageAddress];
+    DisputeData storage dispute = disputes[_disputeID];
+
     uint256 noOfRounds = dispute.rounds.length;
 
-    for (uint256 roundNumber = dispute.roundStartIndex; roundNumber < noOfRounds; roundNumber++) {
-      withdrawFeesAndRewards(_claimStorageAddress, _contributor, roundNumber, _ruling);
+    for (uint256 roundNumber = 0; roundNumber < noOfRounds; roundNumber++) {
+      withdrawFeesAndRewards(_disputeID, _contributor, roundNumber, _ruling);
     }
   }
 
   /** @notice Allows to withdraw any reimbursable fees or rewards after the dispute gets solved.
-      @param _claimStorageAddress Address of storage of the claim.
+      @param _disputeID ID of the dispute as in arbitrator.
       @param _contributor The address whose rewards to withdraw.
       @param _roundNumber The number of the round caller wants to withdraw from.
       @param _ruling Ruling that received contribution from contributor.
       @return amount The amount available to withdraw for given question, contributor, round number and ruling option.
    */
   function withdrawFeesAndRewards(
-    uint256 _claimStorageAddress,
+    uint256 _disputeID,
     address payable _contributor,
     uint256 _roundNumber,
-    uint256 _ruling
+    RulingOptions _ruling
   ) public override returns (uint256 amount) {
-    DisputeData storage dispute = disputes[_claimStorageAddress];
-    require(ARBITRATOR.disputeStatus(dispute.id) == IArbitrator.DisputeStatus.Solved, "There is no ruling yet.");
-    require(_roundNumber >= dispute.roundStartIndex, "This round number belongs to an older claim.");
+    DisputeData storage dispute = disputes[_disputeID];
+    require(dispute.resolved, "There is no ruling yet.");
 
     Round storage round = dispute.rounds[_roundNumber];
 
-    amount = getWithdrawableAmount(round, _contributor, _ruling, uint256(dispute.outcome));
+    amount = getWithdrawableAmount(round, _contributor, _ruling, dispute.outcome);
 
     if (amount != 0) {
       round.contributions[_contributor][RulingOptions(_ruling)] = 0;
       _contributor.send(amount); // Ignoring failure condition deliberately.
-      emit Withdrawal(_claimStorageAddress, _roundNumber, _ruling, _contributor, amount);
+      emit Withdrawal(_disputeID, _roundNumber, _ruling, _contributor, amount);
     }
   }
 
   /** @notice Lets you to transfer ownership of a claim. This is useful when you want to change owner account without withdrawing and resubmitting.
    */
-  function transferOwnership(uint256 _claimStorageAddress, address payable _newOwner) external override {
+  function transferOwnership(uint80 _claimStorageAddress, address payable _newOwner) external override {
     Claim storage claim = claimStorage[_claimStorageAddress];
     require(msg.sender == claim.owner, "Only claimant can transfer ownership.");
     claim.owner = _newOwner;
@@ -390,7 +381,7 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
 
   /** @notice Helper function to find a vacant slot for claim. Use this function before calling initialize to minimize your gas cost.
    */
-  function findVacantStorageSlot(uint256 _searchPointer) external view override returns (uint256 vacantSlotIndex) {
+  function findVacantStorageSlot(uint80 _searchPointer) external view override returns (uint256 vacantSlotIndex) {
     Claim storage claim;
     do {
       claim = claimStorage[_searchPointer++];
@@ -399,37 +390,21 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
     return _searchPointer - 1;
   }
 
-  /** @notice Returns multipliers for appeals.
-   */
-  function getMultipliers()
-    external
-    view
-    override
-    returns (
-      uint256 _WINNER_STAKE_MULTIPLIER,
-      uint256 _LOSER_STAKE_MULTIPLIER,
-      uint256 _LOSER_APPEAL_PERIOD_MULTIPLIER,
-      uint256 _DENOMINATOR
-    )
-  {
-    return (WINNER_STAKE_MULTIPLIER, LOSER_STAKE_MULTIPLIER, LOSER_APPEAL_PERIOD_MULTIPLIER, MULTIPLIER_DENOMINATOR);
-  }
-
   /** @notice Returns the sum of withdrawable amount.
       This function has O(m) time complexity where m is number of rounds.
       It is safe to assume m is always less than 10 as appeal cost growth order is O(m^2).
    */
   function getTotalWithdrawableAmount(
-    uint256 _claimStorageAddress,
+    uint256 _disputeID,
     address payable _contributor,
-    uint256 _ruling
+    RulingOptions _ruling
   ) external view override returns (uint256 sum) {
-    DisputeData storage dispute = disputes[_claimStorageAddress];
-    if (ARBITRATOR.disputeStatus(dispute.id) != IArbitrator.DisputeStatus.Solved) return 0;
+    DisputeData storage dispute = disputes[_disputeID];
+    if (!dispute.resolved) return 0;
     uint256 noOfRounds = dispute.rounds.length;
-    uint256 finalRuling = ARBITRATOR.currentRuling(dispute.id);
+    RulingOptions finalRuling = dispute.outcome;
 
-    for (uint256 roundNumber = dispute.roundStartIndex; roundNumber < noOfRounds; roundNumber++) {
+    for (uint256 roundNumber = 0; roundNumber < noOfRounds; roundNumber++) {
       Round storage round = dispute.rounds[roundNumber];
       sum += getWithdrawableAmount(round, _contributor, _ruling, finalRuling);
     }
@@ -440,8 +415,8 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
   function getWithdrawableAmount(
     Round storage _round,
     address _contributor,
-    uint256 _ruling,
-    uint256 _finalRuling
+    RulingOptions _ruling,
+    RulingOptions _finalRuling
   ) internal view returns (uint256 amount) {
     RulingOptions givenRuling = RulingOptions(_ruling);
 
@@ -462,11 +437,5 @@ contract ProveMeWrong is IProveMeWrong, IDisputeResolver {
           (_round.totalPerRuling[RulingOptions.ChallengeFailed] + _round.totalPerRuling[RulingOptions.Debunked]);
       }
     }
-  }
-
-  /** @notice Returns number of possible ruling options of disputes that arise from this contract. Does not count ruling option 0 (tied), as it's implicit.
-   */
-  function numberOfRulingOptions(uint256) external pure override returns (uint256 count) {
-    return uint256(type(RulingOptions).max);
   }
 }

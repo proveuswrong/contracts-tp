@@ -68,10 +68,7 @@ describe("Prove Me Wrong", () => {
     it("Should not initialize an existing claim", async () => {
       const args = { claimID: ANOTHER_EXAMPLE_IPFS_CIDv1, claimAddress: 0 };
 
-      expect((await pmw.connect(deployer).claimStorage(args.claimAddress)).bountyAmount).to.be.not.equal(
-        0,
-        "This storage slot is not occupied."
-      );
+      expect((await pmw.connect(deployer).claimStorage(args.claimAddress)).bountyAmount).to.be.not.equal(0, "This storage slot is not occupied.");
 
       const vacantSlotIndex = await pmw.connect(deployer).findVacantStorageSlot(0);
 
@@ -89,9 +86,7 @@ describe("Prove Me Wrong", () => {
 
     it("For reference: create dispute gas cost.", async () => {
       for (; disputeCounter < 10; disputeCounter++) {
-        expect(
-          await arbitrator.connect(challenger).createDispute(...[1, "0x1212121212121212"], { value: BigNumber.from("1000000000000000000") })
-        )
+        expect(await arbitrator.connect(challenger).createDispute(...[1, "0x1212121212121212"], { value: BigNumber.from("1000000000000000000") }))
           .to.emit(arbitrator, "DisputeCreation")
           .withArgs(disputeCounter, challenger.address);
       }
@@ -125,13 +120,13 @@ describe("Prove Me Wrong", () => {
       const WINNER_FUNDING = appealFee.add(appealFee.mul(WINNER_STAKE_MULTIPLIER).div(MULTIPLIER_DENOMINATOR));
       const LOSER_FUNDING = appealFee.add(appealFee.mul(LOSER_STAKE_MULTIPLIER).div(MULTIPLIER_DENOMINATOR));
 
-      expect(await pmw.connect(challenger).fundAppeal(CLAIM_ADDRESS, RULING_OUTCOMES.Debunked, { value: LOSER_FUNDING }))
+      expect(await pmw.connect(challenger).fundAppeal(DISPUTE_ID, RULING_OUTCOMES.Debunked, { value: LOSER_FUNDING }))
         .to.emit(pmw, "RulingFunded")
-        .withArgs(CLAIM_ADDRESS, 0, RULING_OUTCOMES.Debunked);
+        .withArgs(DISPUTE_ID, 0, RULING_OUTCOMES.Debunked);
 
-      expect(await pmw.connect(challenger).fundAppeal(CLAIM_ADDRESS, RULING_OUTCOMES.ChallengeFailed, { value: WINNER_FUNDING }))
+      expect(await pmw.connect(challenger).fundAppeal(DISPUTE_ID, RULING_OUTCOMES.ChallengeFailed, { value: WINNER_FUNDING }))
         .to.emit(pmw, "RulingFunded")
-        .withArgs(CLAIM_ADDRESS, 0, RULING_OUTCOMES.ChallengeFailed)
+        .withArgs(DISPUTE_ID, 0, RULING_OUTCOMES.ChallengeFailed)
         .to.emit(arbitrator, "AppealDecision")
         .withArgs(DISPUTE_ID, pmw.address);
     });
@@ -139,9 +134,7 @@ describe("Prove Me Wrong", () => {
     it("Should not let withdraw a claim during a dispute", async () => {
       const args = { claimAddress: 0 };
 
-      await expect(pmw.connect(claimant).initiateWithdrawal(args.claimAddress)).to.be.revertedWith(
-        "Withdrawal already initiated or there is a challenge."
-      );
+      await expect(pmw.connect(claimant).initiateWithdrawal(args.claimAddress)).to.be.revertedWith("Withdrawal already initiated or there is a challenge.");
     });
 
     it("Should let arbitrator to execute a ruling", async () => {
@@ -158,9 +151,7 @@ describe("Prove Me Wrong", () => {
       await expect(pmw.connect(claimant).initiateWithdrawal(args.claimAddress)).to.emit(pmw, "TimelockStarted");
       // .withArgs(EXAMPLE_IPFS_CIDv1, claimant.address, BigNumber.from(2).mul(TEN_ETH));
 
-      await expect(pmw.connect(claimant).withdraw(args.claimAddress)).to.be.revertedWith(
-        "You need to wait for timelock or wait until the challenge ends."
-      );
+      await expect(pmw.connect(claimant).withdraw(args.claimAddress)).to.be.revertedWith("You need to wait for timelock or wait until the challenge ends.");
     });
 
     it("Should let withdraw a claim", async () => {
@@ -213,14 +204,7 @@ async function deployContracts(deployer) {
 
   const PMW = await ethers.getContractFactory("ProveMeWrong", deployer);
   // const pmw = await PMW.deploy({ arbitrator: arbitrator.address, arbitratorExtraData: "0x00" }, SHARE_DENOMINATOR, MIN_FUND_INCREASE_PERCENT, MIN_BOUNTY);
-  const pmw = await PMW.deploy(
-    arbitrator.address,
-    "0x00",
-    "Metaevidence",
-    TIMELOCK_PERIOD,
-    WINNER_STAKE_MULTIPLIER,
-    LOSER_STAKE_MULTIPLIER
-  );
+  const pmw = await PMW.deploy(arbitrator.address, "0x00", "Metaevidence", TIMELOCK_PERIOD, WINNER_STAKE_MULTIPLIER, LOSER_STAKE_MULTIPLIER);
 
   await pmw.deployed();
 
