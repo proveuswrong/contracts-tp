@@ -29,7 +29,7 @@ abstract contract IProveMeWrong {
     CLAIM_WITHDRAWAL_TIMELOCK = _claimWithdrawalTimelock;
   }
 
-  event NewClaim(string indexed claimID, uint256 claimAddress);
+  event NewClaim(string claimID, uint256 claimAddress);
   event Debunked(uint256 claimAddress);
   event Withdrew(uint256 claimAddress);
   event BalanceUpdate(uint256 claimAddress, uint256 newTotal);
