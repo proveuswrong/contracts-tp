@@ -3,7 +3,7 @@ const fetch = require("node-fetch");
 
 module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedAccounts, ethers, config, args }) => {
   // INFURA_PROJECT_ID, PRIVATE_KEY and ETHERSCAN environment variables are required for this task. See Hardhat configuation for more information.
-  const sleepDuration = 10000;
+  const sleepDuration = 15000;
 
   const SUBCOURT = 0;
   const NUMBER_OF_VOTES = 1;
