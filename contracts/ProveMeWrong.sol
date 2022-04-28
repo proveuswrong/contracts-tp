@@ -410,7 +410,8 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
     /** @notice Returns the total amount needs to be paid to appeal a dispute.
    */
     function appealFee(uint256 _disputeID) external view override returns (uint256 arbitrationFee) {
-        arbitrationFee = ARBITRATOR.appealCost(_disputeID, "0x0"); // TODO
+        DisputeData storage dispute = disputes[_disputeID];
+        arbitrationFee = ARBITRATOR.appealCost(_disputeID, categoryToArbitratorExtraData[dispute.claimCategory]);
     }
 
     /** @notice Helper function to find a vacant slot for claim. Use this function before calling initialize to minimize your gas cost.
