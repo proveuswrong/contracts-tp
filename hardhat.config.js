@@ -70,6 +70,7 @@ module.exports = {
     currency: "USD",
     gasPrice: 100,
     coinmarketcap: "5d0616e9-5ad1-46a5-8456-8bf84bb4dbc5",
+    outputFile: "gasExpenseReport.json"
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN,

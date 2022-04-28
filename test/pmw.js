@@ -160,7 +160,7 @@ describe("Prove Me Wrong", () => {
 
       await ethers.provider.send("evm_increaseTime", [TIMELOCK_PERIOD]);
 
-      await expect(pmw.connect(claimant).withdraw(args.claimAddress)).to.emit(pmw, "Withdrew").withArgs(args.claimAddress);
+      await expect(pmw.connect(claimant).withdraw(args.claimAddress)).to.emit(pmw, "ClaimWithdrawn").withArgs(args.claimAddress);
     });
 
     // Third claim, using a vacant used slot. Gas usage should be less than 35K here.

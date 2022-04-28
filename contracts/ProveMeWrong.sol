@@ -1,7 +1,7 @@
 /**
  * SPDX-License-Identifier: MIT
  * @authors: @ferittuncer
- * @reviewers: [@shalzz*, @jaybuidl]
+ * @reviewers: [@shalzz*, @jaybuidl*]
  * @auditors: []
  * @bounties: []
  * @deployments: []
@@ -12,46 +12,10 @@ pragma solidity ^0.8.10;
 import "@kleros/dispute-resolver-interface-contract/contracts/IDisputeResolver.sol";
 import "./IProveMeWrong.sol";
 
-/*
-·---------------------------------------|---------------------------|--------------|-----------------------------·
-|         Solc version: 0.8.10          ·  Optimizer enabled: true  ·  Runs: 1000  ·  Block limit: 30000000 gas  │
-········································|···························|··············|······························
-|  Methods                              ·               100 gwei/gas               ·       4218.94 usd/eth       │
-·················|······················|·············|·············|··············|···············|··············
-|  Contract      ·  Method              ·  Min        ·  Max        ·  Avg         ·  # calls      ·  usd (avg)  │
-·················|······················|·············|·············|··············|···············|··············
-|  Arbitrator    ·  createDispute       ·      82579  ·      99679  ·       84289  ·           20  ·      35.56  │
-·················|······················|·············|·············|··············|···············|··············
-|  Arbitrator    ·  executeRuling       ·          -  ·          -  ·       66719  ·            3  ·      28.15  │
-·················|······················|·············|·············|··············|···············|··············
-|  Arbitrator    ·  giveRuling          ·      78640  ·      98528  ·       93556  ·            4  ·      39.47  │
-·················|······················|·············|·············|··············|···············|··············
-|  ProveMeWrong  ·  challenge           ·          -  ·          -  ·      147901  ·            3  ·      62.40  │
-·················|······················|·············|·············|··············|···············|··············
-|  ProveMeWrong  ·  fundAppeal          ·     133525  ·     138580  ·      135547  ·            5  ·      57.19  │
-·················|······················|·············|·············|··············|···············|··············
-|  ProveMeWrong  ·  increaseBounty      ·          -  ·          -  ·       28602  ·            2  ·      12.07  │
-·················|······················|·············|·············|··············|···············|··············
-|  ProveMeWrong  ·  initializeClaim     ·      31655  ·      51060  ·       38956  ·           10  ·      16.44  │
-·················|······················|·············|·············|··············|···············|··············
-|  ProveMeWrong  ·  initiateWithdrawal  ·          -  ·          -  ·       28085  ·            4  ·      11.85  │
-·················|······················|·············|·············|··············|···············|··············
-|  ProveMeWrong  ·  submitEvidence      ·          -  ·          -  ·       26117  ·            2  ·      11.02  │
-·················|······················|·············|·············|··············|···············|··············
-|  ProveMeWrong  ·  withdraw            ·      28403  ·      35103  ·       30636  ·            3  ·      12.93  │
-·················|······················|·············|·············|··············|···············|··············
-|  Deployments                          ·                                          ·  % of limit   ·             │
-········································|·············|·············|··············|···············|··············
-|  Arbitrator                           ·          -  ·          -  ·      877877  ·        2.9 %  ·     370.37  │
-········································|·············|·············|··············|···············|··············
-|  ProveMeWrong                         ·          -  ·          -  ·     2322785  ·        7.7 %  ·     979.97  │
-·---------------------------------------|-------------|-------------|--------------|---------------|-------------·
-*/
-
 /** @title  Prove Me Wrong
     @notice Smart contract for a type of curation, where submitted items are on hold until they are withdrawn and the amount of security deposits are determined by submitters.
     @dev    Claims are not addressed with their identifiers. That enables us to reuse same storage address for another claim later.
-            Arbitrator and the extra data is fixed. Also the metaevidence. Deploy another contract to change them.
+            Arbitrator and the extra data is fixed. Deploy another contract to change them.
             We prevent claims to get withdrawn immediately. This is to prevent submitter to escape punishment in case someone discovers an argument to debunk the claim.
             Bounty amounts are compressed with a lossy compression method to save on storage cost.
  */
@@ -79,6 +43,7 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
     struct DisputeData {
         address payable challenger;
         RulingOptions outcome;
+        uint8 claimCategory;
         bool resolved; // To remove dependency to disputeStatus function of arbitrator. This function is likely to be removed in Kleros v2.
         uint80 claimStorageAddress; // 2^16 is sufficient. Just using extra available space.
         Round[] rounds; // Tracks each appeal round of a dispute.
@@ -98,7 +63,8 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
         uint8 category;
     }
 
-    bytes public ARBITRATOR_EXTRA_DATA; // Immutable.
+    bytes[64] categoryToArbitratorExtraData;
+
 
     mapping(uint80 => Claim) public claimStorage; // Key: Storage address of claim. Claims are not addressed with their identifiers, to enable reusing a storage slot.
     mapping(uint256 => DisputeData) disputes; // Key: Dispute ID as in arbitrator.
@@ -112,11 +78,11 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
         uint256 _loserStakeMultiplier
     ) IProveMeWrong(_claimWithdrawalTimelock) {
         ARBITRATOR = _arbitrator;
-        ARBITRATOR_EXTRA_DATA = _arbitratorExtraData;
         WINNER_STAKE_MULTIPLIER = _winnerStakeMultiplier;
         LOSER_STAKE_MULTIPLIER = _loserStakeMultiplier;
 
-        emit MetaEvidence(categoryCounter++, _metaevidenceIpfsUri);
+        newCategory(_metaevidenceIpfsUri, _arbitratorExtraData);
+        //        emit MetaEvidence(categoryCounter++, _metaevidenceIpfsUri);
     }
 
 
@@ -195,7 +161,7 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
         claim.withdrawalPermittedAt = 0;
         // This too, otherwise new claim inside the same slot can withdraw instantly.
         payable(msg.sender).transfer(withdrawal);
-        emit Withdrew(_claimStorageAddress);
+        emit ClaimWithdrawn(_claimStorageAddress);
     }
 
     /** @notice Challenges the claim at the given storage address. Follow events to find out which claim resides in which slot.
@@ -210,16 +176,17 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
 
         require(msg.value >= challengeFee(_claimStorageAddress), 'Insufficient funds to challenge.');
 
-        treasuryBalance += claim.bountyAmount*challengeTaxRate/MULTIPLIER_DENOMINATOR;
+        treasuryBalance += claim.bountyAmount * challengeTaxRate / MULTIPLIER_DENOMINATOR;
 
         // To prevent mistakes.
-    require(claim.bountyAmount > 0, "Nothing to challenge.");
+        require(claim.bountyAmount > 0, "Nothing to challenge.");
 
-        uint256 disputeID = ARBITRATOR.createDispute{value : msg.value}(NUMBER_OF_RULING_OPTIONS, ARBITRATOR_EXTRA_DATA);
+        uint256 disputeID = ARBITRATOR.createDispute{value : msg.value}(NUMBER_OF_RULING_OPTIONS, categoryToArbitratorExtraData[claim.category]);
 
         disputes[disputeID].challenger = payable(msg.sender);
         disputes[disputeID].rounds.push();
         disputes[disputeID].claimStorageAddress = uint80(_claimStorageAddress);
+        disputes[disputeID].claimCategory = claim.category;
 
         // Evidence group ID is dispute ID.
         emit Dispute(ARBITRATOR, disputeID, claim.category, disputeID);
@@ -255,7 +222,7 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
                 multiplier = LOSER_STAKE_MULTIPLIER;
             }
 
-            basicCost = ARBITRATOR.appealCost(_disputeID, ARBITRATOR_EXTRA_DATA);
+            basicCost = ARBITRATOR.appealCost(_disputeID, categoryToArbitratorExtraData[dispute.claimCategory]);
             totalCost = basicCost + ((basicCost * (multiplier)) / MULTIPLIER_DENOMINATOR);
         }
 
@@ -291,7 +258,7 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
         if (lastRound.hasPaid[RulingOptions.ChallengeFailed] && lastRound.hasPaid[RulingOptions.Debunked]) {
             dispute.rounds.push();
             lastRound.totalClaimableAfterExpenses -= basicCost;
-            ARBITRATOR.appeal{value : basicCost}(_disputeID, ARBITRATOR_EXTRA_DATA);
+            ARBITRATOR.appeal{value : basicCost}(_disputeID, categoryToArbitratorExtraData[dispute.claimCategory]);
         }
 
         // Ignoring failure condition deliberately.
@@ -410,9 +377,15 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
 
     /** @notice Initializes a category.
       @param _metaevidenceIpfsUri IPFS content identifier for metaevidence.
+            @param _arbitratorExtraData Extra data of Kleros arbitrator, signaling subcourt and jury size selection.
+
    */
-    function newCategory(string calldata _metaevidenceIpfsUri) external payable {
-        emit MetaEvidence(categoryCounter++, _metaevidenceIpfsUri);
+    function newCategory(string memory _metaevidenceIpfsUri, bytes memory _arbitratorExtraData) public payable {
+        require(categoryCounter + 1 != 0, 'No space left for a new category');
+        emit MetaEvidence(categoryCounter, _metaevidenceIpfsUri);
+        categoryToArbitratorExtraData[categoryCounter] = _arbitratorExtraData;
+
+        categoryCounter++;
     }
 
     /** @notice Lets you to transfer ownership of a claim. This is useful when you want to change owner account without withdrawing and resubmitting.
@@ -426,9 +399,9 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
     /** @notice Returns the total amount needs to be paid to challenge a claim.
    */
     function challengeFee(uint80 _claimStorageAddress) public view override returns (uint256 challengeFee) {
-        uint256 arbitrationFee = ARBITRATOR.arbitrationCost(ARBITRATOR_EXTRA_DATA);
-
         Claim storage claim = claimStorage[_claimStorageAddress];
+
+        uint256 arbitrationFee = ARBITRATOR.arbitrationCost(categoryToArbitratorExtraData[claim.category]);
         uint256 challengeTax = claim.bountyAmount * challengeTaxRate / MULTIPLIER_DENOMINATOR;
 
         return arbitrationFee + challengeTax;
@@ -437,7 +410,7 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
     /** @notice Returns the total amount needs to be paid to appeal a dispute.
    */
     function appealFee(uint256 _disputeID) external view override returns (uint256 arbitrationFee) {
-        arbitrationFee = ARBITRATOR.appealCost(_disputeID, ARBITRATOR_EXTRA_DATA);
+        arbitrationFee = ARBITRATOR.appealCost(_disputeID, "0x0"); // TODO
     }
 
     /** @notice Helper function to find a vacant slot for claim. Use this function before calling initialize to minimize your gas cost.
