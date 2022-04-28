@@ -373,8 +373,8 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
 
     /** @notice TODO. This function should use treasuryBalance to buy a token and send it to 0x0.
    */
-    function buyAndBurn(address payable _newAdmin) external onlyAdmin {
-        admin = _newAdmin;
+    function buyAndBurn() external onlyAdmin {
+
     }
 
     /** @notice Initializes a category.
