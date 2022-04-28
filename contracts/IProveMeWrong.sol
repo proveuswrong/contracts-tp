@@ -55,9 +55,10 @@ abstract contract IProveMeWrong {
   /** @notice Initializes a claim. Emits NewClaim. If bounty changed also emits BalanceUpdate.
       @dev    Do not confuse claimID with claimAddress.
       @param _claimID Unique identifier of a claim. Usually an IPFS content identifier.
+      @param _category Claim category. This changes which metaevidence will be used.
       @param _searchPointer Starting point of the search. Find a vacant storage slot before calling this function to minimize gas cost.
    */
-  function initializeClaim(string calldata _claimID, uint80 _searchPointer) external payable virtual;
+  function initializeClaim(string calldata _claimID, uint8 _category, uint80 _searchPointer) external payable virtual;
 
   /** @notice Lets claimant to increase a bounty of a live claim. Emits BalanceUpdate.
       @param _claimStorageAddress The address of the claim in the storage.
@@ -92,7 +93,7 @@ abstract contract IProveMeWrong {
 
   /** @notice Returns the total amount needs to be paid to challenge a claim.
    */
-  function challengeFee() external view virtual returns (uint256 arbitrationFee);
+  function challengeFee(uint80 _claimStorageAddress) public view virtual returns (uint256 challengeFee);
 
   /** @notice Returns the total amount needs to be paid to appeal a dispute.
       @param _disputeID ID of the dispute as in arbitrator.

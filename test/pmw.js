@@ -5,9 +5,8 @@ const crypto = require("crypto");
 
 const EXAMPLE_IPFS_CIDv1 = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
 const ANOTHER_EXAMPLE_IPFS_CIDv1 = "bafybeigdyrzt5sfp7OKOKAHLSKASLK2LK3JLlqabf3oclgtqy55fbzdi";
-const WINNER_STAKE_MULTIPLIER = 3000;
-const LOSER_STAKE_MULTIPLIER = 7000;
-const MULTIPLIER_DENOMINATOR = 10000;
+const WINNER_STAKE_MULTIPLIER = 300;
+const LOSER_STAKE_MULTIPLIER = 700;
 const APPEAL_WINDOW = 1000;
 
 const ONE_ETH = BigNumber.from(BigInt(1e18));
@@ -32,13 +31,15 @@ describe("Prove Me Wrong", () => {
     ({ arbitrator, pmw } = await deployContracts(deployer));
     await sleep(9000); // To wait for eth gas reporter to fetch data. Remove this line when the issue is fixed. https://github.com/cgewecke/hardhat-gas-reporter/issues/72
     NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = await pmw.connect(deployer).NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE();
+    MULTIPLIER_DENOMINATOR = await pmw.connect(deployer).MULTIPLIER_DENOMINATOR();
+
     APPROX_ONE_ETH = BigNumber.from(909_494).mul(BigNumber.from(2).pow(NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE));
   });
 
   describe("Default", () => {
     // First claim, fresh slot.
     it("Should initialize a new claim", async () => {
-      const args = [crypto.randomBytes(30).toString("hex"), 0];
+      const args = [crypto.randomBytes(30).toString("hex"),0, 0];
 
       await expect(pmw.connect(deployer).initializeClaim(...args, { value: TEN_ETH }))
         .to.emit(pmw, "NewClaim")
@@ -58,7 +59,7 @@ describe("Prove Me Wrong", () => {
     it("Should initialize and fund a new claim", async () => {
       const args = { claimID: crypto.randomBytes(30).toString("hex"), claimAddress: 0 };
 
-      await expect(pmw.connect(claimant).initializeClaim(args.claimID, args.claimAddress, { value: TEN_ETH }))
+      await expect(pmw.connect(claimant).initializeClaim(args.claimID, 0, args.claimAddress, { value: TEN_ETH }))
         .to.emit(pmw, "NewClaim")
         .withArgs(args.claimID, args.claimAddress)
         .to.emit(pmw, "BalanceUpdate");
@@ -66,13 +67,13 @@ describe("Prove Me Wrong", () => {
     });
 
     it("Should not initialize an existing claim", async () => {
-      const args = { claimID: ANOTHER_EXAMPLE_IPFS_CIDv1, claimAddress: 0 };
+      const args = { claimID: ANOTHER_EXAMPLE_IPFS_CIDv1, category:0, claimAddress: 0 };
 
       expect((await pmw.connect(deployer).claimStorage(args.claimAddress)).bountyAmount).to.be.not.equal(0, "This storage slot is not occupied.");
 
       const vacantSlotIndex = await pmw.connect(deployer).findVacantStorageSlot(0);
 
-      expect(await pmw.connect(deployer).initializeClaim(args.claimID, args.claimAddress, { value: APPROX_ONE_ETH }))
+      expect(await pmw.connect(deployer).initializeClaim(args.claimID, args.category, args.claimAddress, { value: APPROX_ONE_ETH }))
         .to.emit(pmw, "NewClaim")
         .withArgs(args.claimID, vacantSlotIndex);
     });
@@ -95,7 +96,7 @@ describe("Prove Me Wrong", () => {
     it("Should challenge a claim", async () => {
       const CLAIM_ADDRESS = 0;
 
-      const challengeFee = await pmw.connect(deployer).challengeFee();
+      const challengeFee = await pmw.connect(deployer).challengeFee(CLAIM_ADDRESS);
 
       await expect(pmw.connect(challenger).challenge(CLAIM_ADDRESS, { value: challengeFee }))
         .to.emit(arbitrator, "DisputeCreation")
@@ -164,9 +165,9 @@ describe("Prove Me Wrong", () => {
 
     // Third claim, using a vacant used slot. Gas usage should be less than 35K here.
     it("Should initialize and fund a new claim", async () => {
-      const args = { claimID: crypto.randomBytes(30).toString("hex"), claimAddress: 0 };
+      const args = { claimID: crypto.randomBytes(30).toString("hex"), category:0, claimAddress: 0 };
 
-      await expect(pmw.connect(claimant).initializeClaim(args.claimID, args.claimAddress, { value: TEN_ETH }))
+      await expect(pmw.connect(claimant).initializeClaim(args.claimID, args.category, args.claimAddress, { value: TEN_ETH }))
         .to.emit(pmw, "NewClaim")
         .withArgs(args.claimID, args.claimAddress)
         .to.emit(pmw, "BalanceUpdate");
@@ -178,7 +179,7 @@ describe("Prove Me Wrong", () => {
       const DISPUTE_ID = disputeCounter - 1;
       const CLAIM_ADDRESS = 0;
 
-      const challengeFee = await pmw.connect(deployer).challengeFee();
+      const challengeFee = await pmw.connect(deployer).challengeFee(CLAIM_ADDRESS);
 
       await expect(pmw.connect(challenger).challenge(CLAIM_ADDRESS, { value: challengeFee }));
       expect(await arbitrator.connect(deployer).giveRuling(DISPUTE_ID, RULING_OUTCOMES.Debunked, APPEAL_WINDOW))
