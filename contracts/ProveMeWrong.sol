@@ -15,7 +15,7 @@ import "./IProveMeWrong.sol";
 /** @title  Prove Me Wrong
     @notice Smart contract for a type of curation, where submitted items are on hold until they are withdrawn and the amount of security deposits are determined by submitters.
     @dev    Claims are not addressed with their identifiers. That enables us to reuse same storage address for another claim later.
-            Arbitrator and the extra data is fixed. Deploy another contract to change them.
+            Arbitrator is fixed, but subcourts, jury size and metaevidence are not.
             We prevent claims to get withdrawn immediately. This is to prevent submitter to escape punishment in case someone discovers an argument to debunk the claim.
             Bounty amounts are compressed with a lossy compression method to save on storage cost.
  */
