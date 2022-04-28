@@ -93,6 +93,8 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
       @param _searchPointer Starting point of the search. Find a vacant storage slot before calling this function to minimize gas cost.
    */
     function initializeClaim(string calldata _claimID, uint8 _category, uint80 _searchPointer) external payable override {
+        require(_category < categoryCounter, 'This category does not exist');
+
         Claim storage claim;
         do {
             claim = claimStorage[_searchPointer++];
