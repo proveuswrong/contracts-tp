@@ -362,6 +362,7 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
     /** @notice Lets you to transfer ownership of a claim. This is useful when you want to change owner account without withdrawing and resubmitting.
    */
     function updateChallengeTaxRate(uint256 _newChallengeTaxRate) external onlyAdmin {
+        require(challengeTaxRate > _newChallengeTaxRate, "You can't increase taxes.");
         challengeTaxRate = _newChallengeTaxRate;
     }
 
