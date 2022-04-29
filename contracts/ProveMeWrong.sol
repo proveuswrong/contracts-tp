@@ -108,7 +108,7 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
         require(claim.bountyAmount > 0, "You can't initialize a claim without putting a bounty.");
 
         uint256 claimStorageAddress = _searchPointer - 1;
-        emit NewClaim(_claimID, claimStorageAddress);
+        emit NewClaim(_claimID, _category, claimStorageAddress);
         emit BalanceUpdate(claimStorageAddress, uint256(claim.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
     }
 
@@ -401,7 +401,7 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
 
     /** @notice Returns the total amount needs to be paid to challenge a claim.
    */
-    function challengeFee(uint80 _claimStorageAddress) public view override returns (uint256 challengeFee) {
+    function challengeFee(uint80 _claimStorageAddress) public view override returns (uint256) {
         Claim storage claim = claimStorage[_claimStorageAddress];
 
         uint256 arbitrationFee = ARBITRATOR.arbitrationCost(categoryToArbitratorExtraData[claim.category]);

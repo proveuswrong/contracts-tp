@@ -43,7 +43,7 @@ describe("Prove Me Wrong", () => {
 
       await expect(pmw.connect(deployer).initializeClaim(...args, { value: TEN_ETH }))
         .to.emit(pmw, "NewClaim")
-        .withArgs(...args.slice(0, 2));
+        .withArgs(...args.slice(0, 3));
     });
 
     // Withdrawing the first claim, to create a vacant used slot.
@@ -57,11 +57,11 @@ describe("Prove Me Wrong", () => {
 
     // Second claim, using a vacant used slot. Gas usage should be less than 35K here.
     it("Should initialize and fund a new claim", async () => {
-      const args = { claimID: crypto.randomBytes(30).toString("hex"), claimAddress: 0 };
+      const args = { claimID: crypto.randomBytes(30).toString("hex"), category:0, claimAddress: 0 };
 
-      await expect(pmw.connect(claimant).initializeClaim(args.claimID, 0, args.claimAddress, { value: TEN_ETH }))
+      await expect(pmw.connect(claimant).initializeClaim(args.claimID, args.category, args.claimAddress, { value: TEN_ETH }))
         .to.emit(pmw, "NewClaim")
-        .withArgs(args.claimID, args.claimAddress)
+        .withArgs(args.claimID, args.category, args.claimAddress)
         .to.emit(pmw, "BalanceUpdate");
       // .withArgs(EXAMPLE_IPFS_CIDv1, TEN_ETH);
     });
@@ -75,7 +75,7 @@ describe("Prove Me Wrong", () => {
 
       expect(await pmw.connect(deployer).initializeClaim(args.claimID, args.category, args.claimAddress, { value: APPROX_ONE_ETH }))
         .to.emit(pmw, "NewClaim")
-        .withArgs(args.claimID, vacantSlotIndex);
+        .withArgs(args.claimID, args.category, vacantSlotIndex);
     });
 
     it("Should be able to increase bounty of a claim", async () => {
@@ -169,7 +169,7 @@ describe("Prove Me Wrong", () => {
 
       await expect(pmw.connect(claimant).initializeClaim(args.claimID, args.category, args.claimAddress, { value: TEN_ETH }))
         .to.emit(pmw, "NewClaim")
-        .withArgs(args.claimID, args.claimAddress)
+        .withArgs(args.claimID, args.category, args.claimAddress)
         .to.emit(pmw, "BalanceUpdate");
       // .withArgs(EXAMPLE_IPFS_CIDv1, TEN_ETH);
     });
