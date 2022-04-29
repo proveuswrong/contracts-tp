@@ -9,8 +9,6 @@ Potential usecases:
 - Bug bounties: you can claim your product is bug-free.
 - Advertisement: you can advertise your product with near zero cost (you only pay if you are proven wrong). 
 
-Here is the [specification](https://docs.google.com/document/d/1ZXKgwxBPvqidCnE2x9YzZEMWsTEKfDbwJd_ZjpMGeoM/edit?usp=sharing).
-
 
 ## Deployment
 
