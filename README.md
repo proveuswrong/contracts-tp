@@ -1,4 +1,4 @@
-# Smart Contract of Prove Me Wrong
+# Smart Contracts of Prove Me Wrong
 
 Decentralized curation of truth, utilizing Kleros for decentralized fact-checking.
 
