@@ -72,9 +72,12 @@ module.exports = {
     coinmarketcap: "5d0616e9-5ad1-46a5-8456-8bf84bb4dbc5",
     outputFile: "gasExpenseReport.txt",
     noColors: true
-
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN,
   },
+
+  mocha: {
+    timeout: 60000 // Testnet are taking long.
+  }
 };
