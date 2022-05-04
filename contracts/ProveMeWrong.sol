@@ -63,7 +63,7 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
         uint8 category;
     }
 
-    bytes[64] categoryToArbitratorExtraData;
+    bytes[64] public categoryToArbitratorExtraData;
 
 
     mapping(uint80 => Claim) public claimStorage; // Key: Storage address of claim. Claims are not addressed with their identifiers, to enable reusing a storage slot.
@@ -383,7 +383,7 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
             @param _arbitratorExtraData Extra data of Kleros arbitrator, signaling subcourt and jury size selection.
 
    */
-    function newCategory(string memory _metaevidenceIpfsUri, bytes memory _arbitratorExtraData) public payable {
+    function newCategory(string memory _metaevidenceIpfsUri, bytes memory _arbitratorExtraData) public {
         require(categoryCounter + 1 != 0, 'No space left for a new category');
         emit MetaEvidence(categoryCounter, _metaevidenceIpfsUri);
         categoryToArbitratorExtraData[categoryCounter] = _arbitratorExtraData;
