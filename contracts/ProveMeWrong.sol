@@ -283,7 +283,7 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
         RulingOptions wonByDefault;
         if (lastRound.hasPaid[RulingOptions.ChallengeFailed]) {
             wonByDefault = RulingOptions.ChallengeFailed;
-        } else if (!lastRound.hasPaid[RulingOptions.ChallengeFailed]) {
+        } else if (lastRound.hasPaid[RulingOptions.ChallengeFailed]) {
             wonByDefault = RulingOptions.Debunked;
         }
 
