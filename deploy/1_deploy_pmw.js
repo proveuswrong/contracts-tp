@@ -33,13 +33,12 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
       type: "single-select",
       titles: ["Yes", "No"],
     },
-    evidenceDisplayInterfaceURI: "/ipfs/QmWCmzMB4zbzii8HV9HFGa8Evgt5i63GyveJtw2umxRrcX/reality-evidence-display-4/index.html",
-    dynamicScriptURI: "/ipfs/QmWWsDmvjhR9UVRgkcG75vAKzfK3vB85EkZzudnaxwfAWr/bundle.js",
+    evidenceDisplayInterfaceURI: "/ipfs/QmYYL4ZcjWrrwF7LUYnofvBbBVXkftkzVtyFYZdmivKKYy/index.html",
     fileURI: `/ipfs/${primaryDocumentIPFSPath}`,
     arbitrableChainID: chainId,
     arbitratorChainID: chainId,
-    dynamicScriptRequiredParams: ["arbitrableChainID", "arbitrableJsonRpcUrl", "arbitrableContractAddress"],
-    evidenceDisplayInterfaceRequiredParams: ["arbitrableChainID", "arbitrableJsonRpcUrl", "arbitrableContractAddress"],
+    evidenceDisplayInterfaceRequiredParams: ["disputeID"],
+    _v: "1.0.0"
   };
   const ipfsHashMetaEvidenceObj = await ipfsPublish("metaEvidence.json", new TextEncoder().encode(JSON.stringify(metaevidence)));
   const metaevidenceURI = `/ipfs/${ipfsHashMetaEvidenceObj[1].hash}${ipfsHashMetaEvidenceObj[0].path}`;
