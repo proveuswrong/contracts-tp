@@ -14,21 +14,16 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
     1: "0x988b3A538b618C7A603e1c11Ab82Cd16dbE28069",
     4: "0x6e376E049BD375b53d31AFDc21415AeD360C1E70",
     42: "0x60B2AbfDfaD9c0873242f59f2A8c32A3Cc682f80",
-  };
-
-  const REALITIOv30 = {
-    1: "0x5b7dD1E86623548AF054A4985F7fc8Ccbb554E2c",
-    4: "0xDf33060F476F8cff7511F806C72719394da1Ad64",
-    42: "0xcB71745d032E16ec838430731282ff6c10D29Dea",
+    5: "0x1128eD55ab2d796fa92D2F8E1f336d745354a77A",
   };
 
   const primaryDocumentIPFSPath = "QmaUr6hnSVxYD899xdcn2GUVtXVjXoSXKZbce3zFtGWw4H/Question_Resolution_Policy.pdf";
 
   const metaevidence = {
-    category: "Curation",
-    title: "A Claim Was Challenged",
-    description: "A claim was challenged and a dispute between claimant and challenger has been raised.",
-    question: "Is the claim correct?",
+    category: "News",
+    title: "An Article of The Truth Post Was Challenged",
+    description: "A news article of The Truth Post was challenged and a dispute between reporter and challenger has been raised.",
+    question: "Is this piece of news accurate according to this curation pool??",
     rulingOptions: {
       type: "single-select",
       titles: ["Yes", "No"],
@@ -55,20 +50,21 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
   const networks = {
     42: config.networks.kovan,
     1: config.networks.main,
+    5: config.networks.goerli
   };
   const web3provider = new providers.JsonRpcProvider(networks[chainId]);
   const accounts = await getUnnamedAccounts();
   const deployer = accounts[0];
   const contractName = "ProveMeWrong";
 
-  const ra21 = deploy(contractName, {
+  const contractInstance = deploy(contractName, {
     from: deployer,
     gasLimit: 4000000,
     args: [KLEROS[chainId], generateArbitratorExtraData(SUBCOURT, NUMBER_OF_VOTES), metaevidenceURI, 1, 1, 1],
   });
   console.log("Tx sent. Waiting for confirmation.");
 
-  const deployment = await ra21;
+  const deployment = await contractInstance;
 
   console.log(`Going to try verifying the source code on Etherscan in ${sleepDuration / 1000} seconds.`);
 
