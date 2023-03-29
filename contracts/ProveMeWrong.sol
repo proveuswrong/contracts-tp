@@ -67,7 +67,7 @@ contract ProveMeWrong is IProveMeWrong, IArbitrable, IEvidence {
 
 
     mapping(uint80 => Claim) public claimStorage; // Key: Storage address of claim. Claims are not addressed with their identifiers, to enable reusing a storage slot.
-    mapping(uint256 => DisputeData) disputes; // Key: Dispute ID as in arbitrator.
+    mapping(uint256 => DisputeData) public disputes; // Key: Dispute ID as in arbitrator.
 
     constructor(
         IArbitrator _arbitrator,
