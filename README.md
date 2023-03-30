@@ -15,3 +15,5 @@ Potential usecases:
 `ETHERSCAN=<etherscan_api_key> INFURA_PROJECT_ID=<infura_project_id> PRIVATE_KEY=<private_key> yarn hardhat deploy --network <network>`
 
 Also see the [Hardhat Config](https://github.com/proveuswrong/contracts-pmw/blob/master/hardhat.config.js) and the [deployment script](https://github.com/proveuswrong/contracts-pmw/blob/master/deploy/1_deploy_pmw.js).
+
+Note: PMW project was abandoned and actually this contract is used by the Truth Post.
