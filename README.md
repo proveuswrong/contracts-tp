@@ -16,4 +16,4 @@ Potential usecases:
 
 Also see the [Hardhat Config](https://github.com/proveuswrong/contracts-pmw/blob/master/hardhat.config.js) and the [deployment script](https://github.com/proveuswrong/contracts-pmw/blob/master/deploy/1_deploy_pmw.js).
 
-Note: PMW project was abandoned and actually this contract is used by the Truth Post.
+Note: [PMW project was abandoned](https://proveuswrong.io/faq/#prove-us-wrong-prove-me-wrong-im-confused) and actually this contract is used by the Truth Post.
