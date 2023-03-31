@@ -11,11 +11,11 @@ pragma solidity ^0.8.10;
 
 /** @title  Prove Me Wrong
     @notice Interface smart contract for a type of curation, where submitted items are on hold until they are withdrawn and the amount of security deposits are determined by submitters.
-    @dev    Claims are not addressed with their identifiers. That enables us to reuse same storage address for another claim later.
-            We prevent claims to get withdrawn immediately. This is to prevent submitter to escape punishment in case someone discovers an argument to debunk the claim. Front-ends should be able to take account only this interface and disregard implementation details.
+    @dev    Articles are not addressed with their identifiers. That enables us to reuse same storage address for another article later.
+            We prevent articles to get withdrawn immediately. This is to prevent submitter to escape punishment in case someone discovers an argument to debunk the article. Front-ends should be able to take account only this interface and disregard implementation details.
  */
-abstract contract IProveMeWrong {
-  string public constant PMW_VERSION = "1.0.0";
+abstract contract ITruthPost {
+  string public constant VERSION = "1.0.0";
 
   enum RulingOptions {
     Tied,
@@ -23,18 +23,18 @@ abstract contract IProveMeWrong {
     Debunked
   }
 
-  uint256 public immutable CLAIM_WITHDRAWAL_TIMELOCK; // To prevent claimants to act fast and escape punishment.
+  uint256 public immutable ARTICLE_WITHDRAWAL_TIMELOCK; // To prevent authors to act fast and escape punishment.
 
-  constructor(uint256 _claimWithdrawalTimelock) {
-    CLAIM_WITHDRAWAL_TIMELOCK = _claimWithdrawalTimelock;
+  constructor(uint256 _articleWithdrawalTimelock) {
+    ARTICLE_WITHDRAWAL_TIMELOCK = _articleWithdrawalTimelock;
   }
 
-  event NewClaim(string claimID, uint8 category, uint256 claimAddress);
-  event Debunked(uint256 claimAddress);
-  event ClaimWithdrawn(uint256 claimAddress);
-  event BalanceUpdate(uint256 claimAddress, uint256 newTotal);
-  event TimelockStarted(uint256 claimAddress);
-  event Challenge(uint256 indexed claimAddress, address challanger, uint256 disputeID);
+  event NewArticle(string articleID, uint8 category, uint256 articleAddress);
+  event Debunked(uint256 articleAddress);
+  event ArticleWithdrawn(uint256 articleAddress);
+  event BalanceUpdate(uint256 articleAddress, uint256 newTotal);
+  event TimelockStarted(uint256 articleAddress);
+  event Challenge(uint256 indexed articleAddress, address challanger, uint256 disputeID);
   event Contribution(uint256 indexed disputeId, uint256 indexed round, RulingOptions ruling, address indexed contributor, uint256 amount);
   event Withdrawal(uint256 indexed disputeId, uint256 indexed round, RulingOptions ruling, address indexed contributor, uint256 reward);
   event RulingFunded(uint256 indexed disputeId, uint256 indexed round, RulingOptions indexed ruling);
@@ -52,48 +52,52 @@ abstract contract IProveMeWrong {
    */
   function fundAppeal(uint256 _disputeID, RulingOptions _ruling) external payable virtual returns (bool fullyFunded);
 
-  /** @notice Initializes a claim. Emits NewClaim. If bounty changed also emits BalanceUpdate.
-      @dev    Do not confuse claimID with claimAddress.
-      @param _claimID Unique identifier of a claim. Usually an IPFS content identifier.
-      @param _category Claim category. This changes which metaevidence will be used.
+  /** @notice Initializes an article. Emits NewArticle. If bounty changed also emits BalanceUpdate.
+      @dev    Do not confuse articleID with articleAddress.
+      @param _articleID Unique identifier of an article. Usually an IPFS content identifier.
+      @param _category Article category. This changes which metaevidence will be used.
       @param _searchPointer Starting point of the search. Find a vacant storage slot before calling this function to minimize gas cost.
    */
-  function initializeClaim(string calldata _claimID, uint8 _category, uint80 _searchPointer) external payable virtual;
+  function initializeArticle(
+    string calldata _articleID,
+    uint8 _category,
+    uint80 _searchPointer
+  ) external payable virtual;
 
-  /** @notice Lets claimant to increase a bounty of a live claim. Emits BalanceUpdate.
-      @param _claimStorageAddress The address of the claim in the storage.
+  /** @notice Lets author to increase a bounty of a live article. Emits BalanceUpdate.
+      @param _articleStorageAddress The address of the article in the storage.
    */
-  function increaseBounty(uint80 _claimStorageAddress) external payable virtual;
+  function increaseBounty(uint80 _articleStorageAddress) external payable virtual;
 
-  /** @notice Lets a claimant to start withdrawal process. Emits TimelockStarted.
-      @param _claimStorageAddress The address of the claim in the storage.
+  /** @notice Lets a author to start withdrawal process. Emits TimelockStarted.
+      @param _articleStorageAddress The address of the article in the storage.
    */
-  function initiateWithdrawal(uint80 _claimStorageAddress) external virtual;
+  function initiateWithdrawal(uint80 _articleStorageAddress) external virtual;
 
   /** @notice Executes a withdrawal. Emits Withdrew.
-      @param _claimStorageAddress The address of the claim in the storage.
+      @param _articleStorageAddress The address of the article in the storage.
    */
-  function withdraw(uint80 _claimStorageAddress) external virtual;
+  function withdraw(uint80 _articleStorageAddress) external virtual;
 
-  /** @notice Challenges the claim at the given storage address. Emit Challenge.
-      @param _claimStorageAddress The address of the claim in the storage.
+  /** @notice Challenges the article at the given storage address. Emit Challenge.
+      @param _articleStorageAddress The address of the article in the storage.
    */
-  function challenge(uint80 _claimStorageAddress) public payable virtual;
+  function challenge(uint80 _articleStorageAddress) public payable virtual;
 
-  /** @notice Lets you to transfer ownership of a claim. This is useful when you want to change owner account without withdrawing and resubmitting.
-      @param _claimStorageAddress The address of claim in the storage.
-      @param _claimStorageAddress The new owner of the claim which resides in the storage address, provided by the previous parameter.
+  /** @notice Lets you to transfer ownership of an article. This is useful when you want to change owner account without withdrawing and resubmitting.
+      @param _articleStorageAddress The address of article in the storage.
+      @param _articleStorageAddress The new owner of the article which resides in the storage address, provided by the previous parameter.
    */
-  function transferOwnership(uint80 _claimStorageAddress, address payable _newOwner) external virtual;
+  function transferOwnership(uint80 _articleStorageAddress, address payable _newOwner) external virtual;
 
-  /** @notice Helper function to find a vacant slot for claim. Use this function before calling initialize to minimize your gas cost.
+  /** @notice Helper function to find a vacant slot for article. Use this function before calling initialize to minimize your gas cost.
       @param _searchPointer Starting point of the search. If you do not have a guess, just pass 0.
    */
   function findVacantStorageSlot(uint80 _searchPointer) external view virtual returns (uint256 vacantSlotIndex);
 
-  /** @notice Returns the total amount needs to be paid to challenge a claim.
+  /** @notice Returns the total amount needs to be paid to challenge an article.
    */
-  function challengeFee(uint80 _claimStorageAddress) public view virtual returns (uint256 challengeFee);
+  function challengeFee(uint80 _articleStorageAddress) public view virtual returns (uint256 challengeFee);
 
   /** @notice Returns the total amount needs to be paid to appeal a dispute.
       @param _disputeID ID of the dispute as in arbitrator.
