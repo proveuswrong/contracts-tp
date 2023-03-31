@@ -1,7 +1,7 @@
 /**
  * SPDX-License-Identifier: MIT
- * @authors: @ferittuncer
- * @reviewers: [@jaybuidl]
+ * @authors: @0xferit
+ * @reviewers: [@jaybuidl*, @0xferit*, @gratestas]
  * @auditors: []
  * @bounties: []
  * @deployments: []
