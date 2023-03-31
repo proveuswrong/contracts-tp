@@ -39,29 +39,9 @@ module.exports = {
     hardhat: {
       initialBaseFeePerGas: 0, // workaround from https://github.com/sc-forks/solidity-coverage/issues/652#issuecomment-896330136 . Remove when that issue is closed.
     },
-    ropsten: {
-      chainId: 3,
-      url: `https://ropsten.infura.io/v3/${process.env?.INFURA_PROJECT_ID}` || "",
-      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
-    },
-    rinkeby: {
-      chainId: 4,
-      url: `https://rinkeby.infura.io/v3/${process.env?.INFURA_PROJECT_ID}` || "",
-      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
-    },
     goerli: {
       chainId: 5,
       url: `https://goerli.infura.io/v3/${process.env?.INFURA_PROJECT_ID}` || "",
-      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
-    },
-    kovan: {
-      chainId: 42,
-      url: `https://kovan.infura.io/v3/${process.env.INFURA_PROJECT_ID}` || "",
-      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
-    },
-    sokol: {
-      chainId: 77,
-      url: "https://sokol.poa.network" || "",
       accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
     },
     xdai: {
