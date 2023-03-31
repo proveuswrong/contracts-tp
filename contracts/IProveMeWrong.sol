@@ -35,9 +35,9 @@ abstract contract IProveMeWrong {
   event BalanceUpdate(uint256 claimAddress, uint256 newTotal);
   event TimelockStarted(uint256 claimAddress);
   event Challenge(uint256 indexed claimAddress, address challanger, uint256 disputeID);
-  event Contribution(uint256 indexed claimStorageAddress, uint256 indexed round, RulingOptions ruling, address indexed contributor, uint256 amount);
-  event Withdrawal(uint256 indexed claimStorageAddress, uint256 indexed round, RulingOptions ruling, address indexed contributor, uint256 reward);
-  event RulingFunded(uint256 indexed claimStorageAddress, uint256 indexed round, RulingOptions indexed ruling);
+  event Contribution(uint256 indexed disputeId, uint256 indexed round, RulingOptions ruling, address indexed contributor, uint256 amount);
+  event Withdrawal(uint256 indexed disputeId, uint256 indexed round, RulingOptions ruling, address indexed contributor, uint256 reward);
+  event RulingFunded(uint256 indexed disputeId, uint256 indexed round, RulingOptions indexed ruling);
 
   /** @notice Allows to submit evidence for a given dispute.
    *  @param _disputeID The dispute ID as in arbitrator.
