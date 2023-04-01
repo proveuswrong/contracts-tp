@@ -23,7 +23,7 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
     category: "News",
     title: "An Article of The Truth Post Was Challenged",
     description: "A news article of The Truth Post was challenged and a dispute between reporter and challenger has been raised.",
-    question: "Is this piece of news accurate according to this curation pool??",
+    question: "Is this piece of news accurate according to this curation pool?",
     rulingOptions: {
       type: "single-select",
       titles: ["Yes", "No"],
