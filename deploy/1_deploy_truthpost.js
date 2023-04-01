@@ -55,7 +55,7 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
   const web3provider = new providers.JsonRpcProvider(networks[chainId]);
   const accounts = await getUnnamedAccounts();
   const deployer = accounts[0];
-  const contractName = "ProveMeWrong";
+  const contractName = "TruthPost";
 
   const contractInstance = deploy(contractName, {
     from: deployer,
