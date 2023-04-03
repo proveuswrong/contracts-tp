@@ -473,4 +473,51 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
       }
     }
   }
+
+  function getRoundInfo(uint256 _disputeID, uint256 _round)
+    external
+    view
+    returns (
+      bool[NUMBER_OF_RULING_OPTIONS + 1] memory hasPaid,
+      uint256[NUMBER_OF_RULING_OPTIONS + 1] memory totalPerRuling,
+      uint256 totalClaimableAfterExpenses
+    )
+  {
+    Round storage round = disputes[_disputeID].rounds[_round];
+    return (round.hasPaid, round.totalPerRuling, round.totalClaimableAfterExpenses);
+  }
+
+  function getLastRoundWinner(uint256 _disputeID) public view returns (uint256) {
+    return ARBITRATOR.currentRuling(_disputeID);
+  }
+
+  function getAppealPeriod(uint256 _disputeID, RulingOptions _ruling) external view returns (uint256, uint256) {
+    (uint256 appealWindowStart, uint256 appealWindowEnd) = ARBITRATOR.appealPeriod(_disputeID);
+    uint256 loserAppealWindowEnd = appealWindowStart + (((appealWindowEnd - appealWindowStart) * LOSER_APPEAL_PERIOD_MULTIPLIER) / MULTIPLIER_DENOMINATOR);
+
+    bool isWinner = RulingOptions(getLastRoundWinner(_disputeID)) == _ruling;
+    return isWinner ? (appealWindowStart, appealWindowEnd) : (appealWindowStart, loserAppealWindowEnd);
+  }
+
+  function getReturnOfInvestmentRatio(RulingOptions _ruling, RulingOptions _lastRoundWinner) external view returns (uint256) {
+    bool isWinner = _lastRoundWinner == _ruling;
+    uint256 DECIMAL_PRECISION = 1000;
+    uint256 multiplier = isWinner ? WINNER_STAKE_MULTIPLIER : LOSER_STAKE_MULTIPLIER;
+    return (((WINNER_STAKE_MULTIPLIER + LOSER_STAKE_MULTIPLIER + MULTIPLIER_DENOMINATOR) * DECIMAL_PRECISION) / (multiplier + MULTIPLIER_DENOMINATOR));
+  }
+
+  function getAmountRemainsToBeRaised(uint256 _disputeID, RulingOptions _ruling) external view returns (uint256) {
+    DisputeData storage dispute = disputes[_disputeID];
+    uint256 lastRoundIndex = dispute.rounds.length - 1;
+    Round storage lastRound = dispute.rounds[lastRoundIndex];
+
+    bool isWinner = RulingOptions(getLastRoundWinner(_disputeID)) == _ruling;
+    uint256 multiplier = isWinner ? WINNER_STAKE_MULTIPLIER : LOSER_STAKE_MULTIPLIER;
+
+    uint256 raisedSoFar = lastRound.totalPerRuling[uint256(_ruling)];
+    uint256 basicCost = ARBITRATOR.appealCost(_disputeID, categoryToArbitratorExtraData[dispute.articleCategory]);
+    uint256 totalCost = basicCost + ((basicCost * (multiplier)) / MULTIPLIER_DENOMINATOR);
+
+    return totalCost - raisedSoFar;
+  }
 }
