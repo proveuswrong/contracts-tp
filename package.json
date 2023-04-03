@@ -30,7 +30,8 @@
     "solidity-coverage": "^0.7.16"
   },
   "scripts": {
-    "test": "hardhat test"
+    "test": "hardhat test",
+    "compile": "hardhat compile"
   },
   "repository": {
     "type": "git",

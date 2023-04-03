@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { BigNumber } = ethers;
 const crypto = require("crypto");
+const { constants } = require("ethers");
 
 const EXAMPLE_IPFS_CIDv1 = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
 const ANOTHER_EXAMPLE_IPFS_CIDv1 = "bafybeigdyrzt5sfp7OKOKAHLSKASLK2LK3JLlqabf3oclgtqy55fbzdi";
@@ -132,6 +133,30 @@ describe("The Truth Post", () => {
         .withArgs(DISPUTE_ID, truthPost.address);
     });
 
+    it("Should return valid Round data", async () => {
+      const DISPUTE_ID = disputeCounter - 1;
+      const ARTICLE_ADDRESS = 0;
+
+      await arbitrator.connect(deployer).giveRuling(DISPUTE_ID, RULING_OUTCOMES.ChallengeFailed, APPEAL_WINDOW);
+      await ethers.provider.send("evm_increaseTime", [10]);
+
+      const appealFee = await truthPost.connect(deployer).appealFee(DISPUTE_ID);
+      const WINNER_FUNDING = appealFee.add(appealFee.mul(WINNER_STAKE_MULTIPLIER).div(MULTIPLIER_DENOMINATOR));
+      const LOSER_FUNDING = appealFee.add(appealFee.mul(LOSER_STAKE_MULTIPLIER).div(MULTIPLIER_DENOMINATOR));
+
+      await truthPost.connect(challenger).fundAppeal(DISPUTE_ID, RULING_OUTCOMES.Debunked, { value: LOSER_FUNDING });
+      await truthPost.connect(challenger).fundAppeal(DISPUTE_ID, RULING_OUTCOMES.ChallengeFailed, { value: WINNER_FUNDING });
+
+      const roundInfo = await truthPost.getRoundInfo(DISPUTE_ID, 0);
+      expect(roundInfo.hasPaid[RULING_OUTCOMES.Debunked]).eq(true);
+      expect(roundInfo.hasPaid[RULING_OUTCOMES.ChallengeFailed]).eq(true);
+
+      expect(roundInfo.totalPerRuling[RULING_OUTCOMES.Debunked]).eq(LOSER_FUNDING);
+      expect(roundInfo.totalPerRuling[RULING_OUTCOMES.ChallengeFailed]).eq(WINNER_FUNDING);
+
+      expect(roundInfo.totalClaimableAfterExpenses).eq(WINNER_FUNDING.add(LOSER_FUNDING).sub(appealFee));
+    });
+
     it("Should not let withdraw a article during a dispute", async () => {
       const args = { articleAddress: 0 };
 
@@ -190,6 +215,48 @@ describe("The Truth Post", () => {
       expect(await arbitrator.connect(deployer).executeRuling(DISPUTE_ID))
         .to.emit(truthPost, "Debunked")
         .withArgs(ARTICLE_ADDRESS);
+    });
+
+    it("Should validate difference b/w appeal periods of winner and loser sides", async () => {
+      disputeCounter++;
+      const DISPUTE_ID = disputeCounter - 1;
+
+      const args = { articleID: crypto.randomBytes(30).toString("hex"), category: 0, articleAddress: 0 };
+      await truthPost.connect(author).initializeArticle(args.articleID, args.category, args.articleAddress, { value: TEN_ETH });
+
+      const challengeFee = await truthPost.challengeFee(args.articleAddress);
+
+      await truthPost.connect(challenger).challenge(args.articleAddress, { value: challengeFee });
+      // arbitrator gives rulin in favore of challenger (article is debunked)
+      await arbitrator.connect(deployer).giveRuling(DISPUTE_ID, RULING_OUTCOMES.Debunked, APPEAL_WINDOW);
+
+      const [start, end] = await truthPost.getAppealPeriod(DISPUTE_ID, RULING_OUTCOMES.Debunked);
+      const [, loserEnd] = await truthPost.getAppealPeriod(DISPUTE_ID, RULING_OUTCOMES.ChallengeFailed);
+
+      const winnerAppealPeriod = end.sub(start);
+      const loserAppealPeriod = loserEnd.sub(start);
+      expect(loserAppealPeriod.div(winnerAppealPeriod)).eq(BigNumber.from(LOSER_STAKE_MULTIPLIER).div(MULTIPLIER_DENOMINATOR));
+    });
+
+    it("Should validate remained amount to be raised for the current round", async () => {
+      const DISPUTE_ID = disputeCounter - 1;
+      await ethers.provider.send("evm_increaseTime", [10]);
+
+      const appealFee = await truthPost.appealFee(DISPUTE_ID);
+      const WINNER_FUNDING = appealFee.add(appealFee.mul(WINNER_STAKE_MULTIPLIER).div(MULTIPLIER_DENOMINATOR));
+      const LOSER_FUNDING = appealFee.add(appealFee.mul(LOSER_STAKE_MULTIPLIER).div(MULTIPLIER_DENOMINATOR));
+
+      await truthPost.connect(challenger).fundAppeal(DISPUTE_ID, RULING_OUTCOMES.Debunked, { value: WINNER_FUNDING });
+      expect(await truthPost.getAmountRemainsToBeRaised(DISPUTE_ID, RULING_OUTCOMES.Debunked)).to.eq(constants.Zero);
+
+      await truthPost.connect(deployer).fundAppeal(DISPUTE_ID, RULING_OUTCOMES.ChallengeFailed, { value: LOSER_FUNDING.mul(75).div(100) });
+      expect(await truthPost.getAmountRemainsToBeRaised(DISPUTE_ID, RULING_OUTCOMES.ChallengeFailed)).to.eq(LOSER_FUNDING.mul(25).div(100));
+
+      // dispute goes into the new Round
+      await truthPost.connect(deployer).fundAppeal(DISPUTE_ID, RULING_OUTCOMES.ChallengeFailed, { value: LOSER_FUNDING.mul(25).div(100) });
+
+      expect(await truthPost.getAmountRemainsToBeRaised(DISPUTE_ID, RULING_OUTCOMES.Debunked)).to.eq(WINNER_FUNDING);
+      expect(await truthPost.getAmountRemainsToBeRaised(DISPUTE_ID, RULING_OUTCOMES.ChallengeFailed)).to.eq(LOSER_FUNDING);
     });
   });
 });

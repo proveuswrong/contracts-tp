@@ -50,9 +50,9 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
   }
 
   struct Round {
-    mapping(address => mapping(RulingOptions => uint256)) contributions;
-    mapping(RulingOptions => bool) hasPaid; // True if the fees for this particular answer has been fully paid in the form hasPaid[rulingOutcome].
-    mapping(RulingOptions => uint256) totalPerRuling;
+    mapping(address => uint256[NUMBER_OF_RULING_OPTIONS + 1]) contributions;
+    bool[NUMBER_OF_RULING_OPTIONS + 1] hasPaid; // True if the fees for this particular answer has been fully paid in the form hasPaid[rulingOutcome].
+    uint256[NUMBER_OF_RULING_OPTIONS + 1] totalPerRuling;
     uint256 totalClaimableAfterExpenses;
   }
 
@@ -216,7 +216,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
         multiplier = WINNER_STAKE_MULTIPLIER;
       } else {
         require(
-          block.timestamp < (appealWindowStart + ((appealWindowEnd - appealWindowStart) / 2)),
+          block.timestamp < (appealWindowStart + (((appealWindowEnd - appealWindowStart) * LOSER_APPEAL_PERIOD_MULTIPLIER) / MULTIPLIER_DENOMINATOR)),
           "Funding must be made within the first half appeal period."
         );
 
@@ -231,11 +231,11 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
 
     uint256 lastRoundIndex = dispute.rounds.length - 1;
     Round storage lastRound = dispute.rounds[lastRoundIndex];
-    require(!lastRound.hasPaid[supportedRulingOutcome], "Appeal fee has already been paid.");
+    require(!lastRound.hasPaid[uint256(supportedRulingOutcome)], "Appeal fee has already been paid.");
 
     uint256 contribution;
     {
-      uint256 paidSoFar = lastRound.totalPerRuling[supportedRulingOutcome];
+      uint256 paidSoFar = lastRound.totalPerRuling[uint256(supportedRulingOutcome)];
 
       if (paidSoFar >= totalCost) {
         contribution = 0;
@@ -247,16 +247,16 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
 
     emit Contribution(_disputeID, lastRoundIndex, _supportedRuling, msg.sender, contribution);
 
-    lastRound.contributions[msg.sender][supportedRulingOutcome] += contribution;
-    lastRound.totalPerRuling[supportedRulingOutcome] += contribution;
+    lastRound.contributions[msg.sender][uint256(supportedRulingOutcome)] += contribution;
+    lastRound.totalPerRuling[uint256(supportedRulingOutcome)] += contribution;
 
-    if (lastRound.totalPerRuling[supportedRulingOutcome] >= totalCost) {
-      lastRound.totalClaimableAfterExpenses += lastRound.totalPerRuling[supportedRulingOutcome];
-      lastRound.hasPaid[supportedRulingOutcome] = true;
+    if (lastRound.totalPerRuling[uint256(supportedRulingOutcome)] >= totalCost) {
+      lastRound.totalClaimableAfterExpenses += lastRound.totalPerRuling[uint256(supportedRulingOutcome)];
+      lastRound.hasPaid[uint256(supportedRulingOutcome)] = true;
       emit RulingFunded(_disputeID, lastRoundIndex, _supportedRuling);
     }
 
-    if (lastRound.hasPaid[RulingOptions.ChallengeFailed] && lastRound.hasPaid[RulingOptions.Debunked]) {
+    if (lastRound.hasPaid[uint256(RulingOptions.ChallengeFailed)] && lastRound.hasPaid[uint256(RulingOptions.Debunked)]) {
       dispute.rounds.push();
       lastRound.totalClaimableAfterExpenses -= basicCost;
       ARBITRATOR.appeal{value: basicCost}(_disputeID, categoryToArbitratorExtraData[dispute.articleCategory]);
@@ -265,7 +265,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     // Ignoring failure condition deliberately.
     if (msg.value - contribution > 0) payable(msg.sender).send(msg.value - contribution);
 
-    return lastRound.hasPaid[supportedRulingOutcome];
+    return lastRound.hasPaid[uint256(supportedRulingOutcome)];
   }
 
   /** @notice For arbitrator to call, to execute it's ruling. In case arbitrator rules in favor of challenger, challenger wins the bounty. In any case, withdrawalPermittedAt will be reset.
@@ -280,9 +280,9 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
 
     // Appeal overrides arbitrator ruling. If a ruling option was not fully funded and the counter ruling option was funded, funded ruling option wins by default.
     RulingOptions wonByDefault;
-    if (lastRound.hasPaid[RulingOptions.ChallengeFailed]) {
+    if (lastRound.hasPaid[uint256(RulingOptions.ChallengeFailed)]) {
       wonByDefault = RulingOptions.ChallengeFailed;
-    } else if (lastRound.hasPaid[RulingOptions.ChallengeFailed]) {
+    } else if (lastRound.hasPaid[uint256(RulingOptions.ChallengeFailed)]) {
       wonByDefault = RulingOptions.Debunked;
     }
 
@@ -351,7 +351,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     amount = getWithdrawableAmount(round, _contributor, _ruling, dispute.outcome);
 
     if (amount != 0) {
-      round.contributions[_contributor][RulingOptions(_ruling)] = 0;
+      round.contributions[_contributor][uint256(RulingOptions(_ruling))] = 0;
       _contributor.send(amount);
       // Ignoring failure condition deliberately.
       emit Withdrawal(_disputeID, _roundNumber, _ruling, _contributor, amount);
@@ -455,22 +455,69 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
   ) internal view returns (uint256 amount) {
     RulingOptions givenRuling = RulingOptions(_ruling);
 
-    if (!_round.hasPaid[givenRuling]) {
+    if (!_round.hasPaid[uint256(givenRuling)]) {
       // Allow to reimburse if funding was unsuccessful for this ruling option.
-      amount = _round.contributions[_contributor][givenRuling];
+      amount = _round.contributions[_contributor][uint256(givenRuling)];
     } else {
       // Funding was successful for this ruling option.
       if (_ruling == _finalRuling) {
         // This ruling option is the ultimate winner.
-        amount = _round.totalPerRuling[givenRuling] > 0
-          ? (_round.contributions[_contributor][givenRuling] * _round.totalClaimableAfterExpenses) / _round.totalPerRuling[givenRuling]
+        amount = _round.totalPerRuling[uint256(givenRuling)] > 0
+          ? (_round.contributions[_contributor][uint256(givenRuling)] * _round.totalClaimableAfterExpenses) / _round.totalPerRuling[uint256(givenRuling)]
           : 0;
-      } else if (!_round.hasPaid[RulingOptions(_finalRuling)]) {
+      } else if (!_round.hasPaid[uint256(RulingOptions(_finalRuling))]) {
         // The ultimate winner was not funded in this round. Contributions discounting the appeal fee are reimbursed proportionally.
         amount =
-          (_round.contributions[_contributor][givenRuling] * _round.totalClaimableAfterExpenses) /
-          (_round.totalPerRuling[RulingOptions.ChallengeFailed] + _round.totalPerRuling[RulingOptions.Debunked]);
+          (_round.contributions[_contributor][uint256(givenRuling)] * _round.totalClaimableAfterExpenses) /
+          (_round.totalPerRuling[uint256(RulingOptions.ChallengeFailed)] + _round.totalPerRuling[uint256(RulingOptions.Debunked)]);
       }
     }
+  }
+
+  function getRoundInfo(uint256 _disputeID, uint256 _round)
+    external
+    view
+    returns (
+      bool[NUMBER_OF_RULING_OPTIONS + 1] memory hasPaid,
+      uint256[NUMBER_OF_RULING_OPTIONS + 1] memory totalPerRuling,
+      uint256 totalClaimableAfterExpenses
+    )
+  {
+    Round storage round = disputes[_disputeID].rounds[_round];
+    return (round.hasPaid, round.totalPerRuling, round.totalClaimableAfterExpenses);
+  }
+
+  function getLastRoundWinner(uint256 _disputeID) public view returns (uint256) {
+    return ARBITRATOR.currentRuling(_disputeID);
+  }
+
+  function getAppealPeriod(uint256 _disputeID, RulingOptions _ruling) external view returns (uint256, uint256) {
+    (uint256 appealWindowStart, uint256 appealWindowEnd) = ARBITRATOR.appealPeriod(_disputeID);
+    uint256 loserAppealWindowEnd = appealWindowStart + (((appealWindowEnd - appealWindowStart) * LOSER_APPEAL_PERIOD_MULTIPLIER) / MULTIPLIER_DENOMINATOR);
+
+    bool isWinner = RulingOptions(getLastRoundWinner(_disputeID)) == _ruling;
+    return isWinner ? (appealWindowStart, appealWindowEnd) : (appealWindowStart, loserAppealWindowEnd);
+  }
+
+  function getReturnOfInvestmentRatio(RulingOptions _ruling, RulingOptions _lastRoundWinner) external view returns (uint256) {
+    bool isWinner = _lastRoundWinner == _ruling;
+    uint256 DECIMAL_PRECISION = 1000;
+    uint256 multiplier = isWinner ? WINNER_STAKE_MULTIPLIER : LOSER_STAKE_MULTIPLIER;
+    return (((WINNER_STAKE_MULTIPLIER + LOSER_STAKE_MULTIPLIER + MULTIPLIER_DENOMINATOR) * DECIMAL_PRECISION) / (multiplier + MULTIPLIER_DENOMINATOR));
+  }
+
+  function getAmountRemainsToBeRaised(uint256 _disputeID, RulingOptions _ruling) external view returns (uint256) {
+    DisputeData storage dispute = disputes[_disputeID];
+    uint256 lastRoundIndex = dispute.rounds.length - 1;
+    Round storage lastRound = dispute.rounds[lastRoundIndex];
+
+    bool isWinner = RulingOptions(getLastRoundWinner(_disputeID)) == _ruling;
+    uint256 multiplier = isWinner ? WINNER_STAKE_MULTIPLIER : LOSER_STAKE_MULTIPLIER;
+
+    uint256 raisedSoFar = lastRound.totalPerRuling[uint256(_ruling)];
+    uint256 basicCost = ARBITRATOR.appealCost(_disputeID, categoryToArbitratorExtraData[dispute.articleCategory]);
+    uint256 totalCost = basicCost + ((basicCost * (multiplier)) / MULTIPLIER_DENOMINATOR);
+
+    return totalCost - raisedSoFar;
   }
 }
