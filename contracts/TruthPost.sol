@@ -309,6 +309,27 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     emit Ruling(IArbitrator(msg.sender), _disputeID, _ruling);
   }
 
+
+
+  /** @notice Allows to withdraw any rewards or reimbursable fees after the dispute gets resolved. For all rounds at once.
+      This function has O(mn) time complexity where m is number of rounds and n is number of ruling options.
+      It is safe to assume m is always less than 10 as appeal cost growth order is O(2^m).
+      When number of rulings options are high, this function can run out of gas.
+      @param _disputeID ID of the dispute as in arbitrator.
+      @param _contributor The address whose rewards to withdraw.
+   */
+  function withdrawFeesAndRewardsForAllRoundsAndAllRulings(
+    uint256 _disputeID,
+    address payable _contributor
+  ) external override {
+    DisputeData storage dispute = disputes[_disputeID];
+    uint256 noOfRounds = dispute.rounds.length;
+    for (uint256 roundNumber = 0; roundNumber < noOfRounds; roundNumber++) {
+      for(uint256 rulingOption = 0; rulingOption <= NUMBER_OF_RULING_OPTIONS; rulingOption++)
+      withdrawFeesAndRewards(_disputeID, _contributor, roundNumber, RulingOptions(rulingOption));
+    }
+  }
+
   /** @notice Allows to withdraw any rewards or reimbursable fees after the dispute gets resolved. For all rounds at once.
       This function has O(m) time complexity where m is number of rounds.
       It is safe to assume m is always less than 10 as appeal cost growth order is O(2^m).
@@ -322,11 +343,24 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     RulingOptions _ruling
   ) external override {
     DisputeData storage dispute = disputes[_disputeID];
-
     uint256 noOfRounds = dispute.rounds.length;
-
     for (uint256 roundNumber = 0; roundNumber < noOfRounds; roundNumber++) {
       withdrawFeesAndRewards(_disputeID, _contributor, roundNumber, _ruling);
+    }
+  }
+
+
+  function withdrawFeesAndRewardsForGivenPositions(
+    uint256 _disputeID,
+    address payable _contributor,
+    uint[][] calldata positions
+  ) external {
+    for (uint256 roundNumber = 0; roundNumber < positions.length; roundNumber++) {
+      for (uint256 rulingOption = 0; rulingOption < positions[roundNumber].length; rulingOption++) {
+        if (positions[roundNumber][rulingOption] > 0) {
+          withdrawFeesAndRewards(_disputeID, _contributor, roundNumber, RulingOptions(rulingOption));
+        }
+      }
     }
   }
 
@@ -431,17 +465,24 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
    */
   function getTotalWithdrawableAmount(
     uint256 _disputeID,
-    address payable _contributor,
-    RulingOptions _ruling
-  ) external view override returns (uint256 sum) {
+    address payable _contributor
+  ) external view override returns (uint256 sum,  uint256[][] memory positions) {
     DisputeData storage dispute = disputes[_disputeID];
-    if (!dispute.resolved) return 0;
+    uint[][] memory positions;
+    if (!dispute.resolved) return (uint256(0), positions);
     uint256 noOfRounds = dispute.rounds.length;
     RulingOptions finalRuling = dispute.outcome;
 
     for (uint256 roundNumber = 0; roundNumber < noOfRounds; roundNumber++) {
       Round storage round = dispute.rounds[roundNumber];
-      sum += getWithdrawableAmount(round, _contributor, _ruling, finalRuling);
+      for(uint256 rulingOption = 0; rulingOption <= NUMBER_OF_RULING_OPTIONS; rulingOption++)
+      {
+        uint currentAmount = getWithdrawableAmount(round, _contributor, RulingOptions(rulingOption), finalRuling);
+        if(currentAmount > 0){
+          sum += getWithdrawableAmount(round, _contributor, RulingOptions(rulingOption), finalRuling);
+          positions[roundNumber][rulingOption] = currentAmount;
+        }
+      }
     }
   }
 
