@@ -15,7 +15,7 @@ pragma solidity ^0.8.10;
             We prevent articles to get withdrawn immediately. This is to prevent submitter to escape punishment in case someone discovers an argument to debunk the article. Front-ends should be able to take account only this interface and disregard implementation details.
  */
 abstract contract ITruthPost {
-  string public constant VERSION = "1.0.0";
+  string public constant VERSION = "1.1.0";
 
   enum RulingOptions {
     Tied,
@@ -129,15 +129,22 @@ abstract contract ITruthPost {
     RulingOptions _ruling
   ) external virtual;
 
+  /** @dev Allows to withdraw any rewards or reimbursable fees after the dispute gets resolved for all rounds and all rulings at once.
+   *  @param _disputeID The dispute ID as in arbitrator.
+   *  @param _contributor Beneficiary of withdraw operation.
+   */
+  function withdrawFeesAndRewardsForAllRoundsAndAllRulings(
+    uint256 _disputeID,
+    address payable _contributor
+  ) external virtual;
+
   /** @dev Returns the sum of withdrawable amount.
    *  @param _disputeID The dispute ID as in arbitrator.
    *  @param _contributor Beneficiary of withdraw operation.
-   *  @param _ruling Ruling option that caller wants to get withdrawable amount from.
    *  @return sum The total amount available to withdraw.
    */
   function getTotalWithdrawableAmount(
     uint256 _disputeID,
-    address payable _contributor,
-    RulingOptions _ruling
-  ) external view virtual returns (uint256 sum);
+    address payable _contributor
+  ) external view virtual returns (uint256 sum, uint[][] memory positions );
 }
