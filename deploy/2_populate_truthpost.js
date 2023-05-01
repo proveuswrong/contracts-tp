@@ -2,7 +2,6 @@ module.exports = async ({getNamedAccounts, deployments, getChainId, getUnnamedAc
 
   // INFURA_PROJECT_ID and PRIVATE_KEY environment variables are required for this task. See Hardhat configuation for more information.
   const chainId = await getChainId();
-  console.log("here");
   if (chainId == 1) {
     return;
   }

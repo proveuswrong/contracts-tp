@@ -466,25 +466,28 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
   function getTotalWithdrawableAmount(
     uint256 _disputeID,
     address payable _contributor
-  ) external view override returns (uint256 sum,  uint256[][] memory positions) {
+  ) external view override returns (uint256 sum,  uint256[][] memory amounts) {
     DisputeData storage dispute = disputes[_disputeID];
-    uint[][] memory positions;
-    if (!dispute.resolved) return (uint256(0), positions);
+    if (!dispute.resolved) return (uint256(0), amounts);
     uint256 noOfRounds = dispute.rounds.length;
     RulingOptions finalRuling = dispute.outcome;
 
+    amounts = new uint256[][](noOfRounds);
     for (uint256 roundNumber = 0; roundNumber < noOfRounds; roundNumber++) {
+      amounts[roundNumber] = new uint256[](NUMBER_OF_RULING_OPTIONS + 1);
+
       Round storage round = dispute.rounds[roundNumber];
       for(uint256 rulingOption = 0; rulingOption <= NUMBER_OF_RULING_OPTIONS; rulingOption++)
       {
         uint currentAmount = getWithdrawableAmount(round, _contributor, RulingOptions(rulingOption), finalRuling);
         if(currentAmount > 0){
           sum += getWithdrawableAmount(round, _contributor, RulingOptions(rulingOption), finalRuling);
-          positions[roundNumber][rulingOption] = currentAmount;
+          amounts[roundNumber][rulingOption] = currentAmount;
         }
       }
     }
   }
+
 
   /** @notice Returns withdrawable amount for given parameters.
    */
