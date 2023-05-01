@@ -60,7 +60,7 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
   const contractInstance = deploy(contractName, {
     from: deployer,
     gasLimit: 4000000,
-    args: [KLEROS[chainId], generateArbitratorExtraData(SUBCOURT, NUMBER_OF_VOTES), metaevidenceURI, 1, 1, 1],
+    args: [KLEROS[chainId], generateArbitratorExtraData(SUBCOURT, NUMBER_OF_VOTES), metaevidenceURI, 300, 128, 256],
   });
   console.log("Tx sent. Waiting for confirmation.");
 
