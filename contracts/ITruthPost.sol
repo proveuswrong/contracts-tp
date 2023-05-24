@@ -79,7 +79,7 @@ abstract contract ITruthPost {
     function increaseBounty(uint80 _articleStorageAddress) external payable virtual;
 
     /** @notice Initiate unpublishing process.
-        @dev Lets a author to start unpublishing process. Emits TimelockStarted.
+        @dev Lets an author to start unpublishing process. Emits TimelockStarted.
         @param _articleStorageAddress The address of the article in the storage.
     */
     function initiateWithdrawal(uint80 _articleStorageAddress) external virtual;
@@ -149,7 +149,7 @@ abstract contract ITruthPost {
     ) external virtual;
 
     /** @notice Withdraw appeal crowdfunding balance for given ruling option and for given rounds.
-        @dev Allows to withdraw any rewards or reimbursable fees after the dispute gets resolved for all rounds at once.
+        @dev Allows to withdraw any rewards or reimbursable fees after the dispute gets resolved for given positions at once.
         @param _disputeID The dispute ID as in arbitrator.
         @param _contributor Beneficiary of withdraw operation.
         @param positions [rounds][rulings].
@@ -171,7 +171,7 @@ abstract contract ITruthPost {
     ) external virtual;
 
     /** @notice Learn the total amount of appeal crowdfunding balance available.
-        @dev Returns the sum of withdrawable amount.
+        @dev Returns the sum of withdrawable amount and 2D array of positions[round][ruling].
         @param _disputeID The dispute ID as in arbitrator.
         @param _contributor Beneficiary of withdraw operation.
         @return sum The total amount available to withdraw.
