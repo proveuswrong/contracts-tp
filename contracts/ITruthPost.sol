@@ -94,7 +94,7 @@ abstract contract ITruthPost {
         @dev Challenges the article at the given storage address. Emit Challenge.
         @param _articleStorageAddress The address of the article in the storage.
     */
-    function challenge(uint80 _articleStorageAddress) public payable virtual;
+    function challenge(uint80 _articleStorageAddress) external payable virtual;
 
     /** @notice Transfer ownership of an article.
         @dev Lets you to transfer ownership of an article. This is useful when you want to change owner account without withdrawing and resubmitting.

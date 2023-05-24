@@ -139,7 +139,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     }
 
     /// @inheritdoc ITruthPost
-    function challenge(uint80 _articleStorageAddress) public payable override {
+    function challenge(uint80 _articleStorageAddress) external payable override {
         Article storage article = articleStorage[_articleStorageAddress];
         require(article.withdrawalPermittedAt != type(uint32).max, "There is an ongoing challenge.");
         article.withdrawalPermittedAt = type(uint32).max;
