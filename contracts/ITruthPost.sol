@@ -8,7 +8,7 @@ pragma solidity ^0.8.10;
     @author https://github.com/proveuswrong<0xferit, @gratestas>
     @dev    This contract serves as an standard interface among multiple deployments of the Truth Post contracts.
             You should target this interface contract when for interactions, not the concrete contract. Otherwise you risk incompatibility across versions.
-    @custom:approvals 0xferit
+    @custom:approvals 0xferit, @gratestas*
  */
 abstract contract ITruthPost {
     string public constant VERSION = "1.2.0";
@@ -20,7 +20,7 @@ abstract contract ITruthPost {
     }
 
 
-    address payable public constant TREASURY = payable(0x387e8B40e332831b7a8ad629966df3E9f969C6ad);
+    address payable public TREASURY; 
     uint256 public constant NUMBER_OF_RULING_OPTIONS = 2;
     uint256 public constant MULTIPLIER_DENOMINATOR = 1024; // Denominator for multipliers.
     uint256 public constant LOSER_APPEAL_PERIOD_MULTIPLIER = 512; // Multiplier of the appeal period for losers (any other ruling options) in basis points. The loser is given less time to fund its appeal to defend against last minute appeal funding attacks.
@@ -30,10 +30,11 @@ abstract contract ITruthPost {
     uint256 public challengeTaxRate = 16;
     uint256 public treasuryBalance;
 
-    constructor(uint256 _articleWithdrawalTimelock, uint _winnerStakeMultiplier, uint _loserStakeMultiplier) {
+    constructor(uint256 _articleWithdrawalTimelock, uint256 _winnerStakeMultiplier, uint256 _loserStakeMultiplier, address payable _treasury) {
         ARTICLE_WITHDRAWAL_TIMELOCK = _articleWithdrawalTimelock;
         WINNER_STAKE_MULTIPLIER = _winnerStakeMultiplier;
         LOSER_STAKE_MULTIPLIER = _loserStakeMultiplier;
+        TREASURY = _treasury;
     }
 
     event NewArticle(string articleID, uint8 category, uint256 articleAddress);

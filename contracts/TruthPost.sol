@@ -15,7 +15,7 @@ import "./ITruthPost.sol";
             Arbitrator is fixed, but subcourts, jury size and metaevidence are not.
             We prevent articles to get withdrawn immediately. This is to prevent submitter to escape punishment in case someone discovers an argument to debunk the article.
             Bounty amounts are compressed with a lossy compression method to save on storage cost.
-    @custom:approvals 0xferit
+    @custom:approvals 0xferit, @gratestas*
  */
 contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     IArbitrator public immutable ARBITRATOR;
@@ -64,8 +64,9 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
         string memory _metaevidenceIpfsUri,
         uint256 _articleWithdrawalTimelock,
         uint256 _winnerStakeMultiplier,
-        uint256 _loserStakeMultiplier
-    ) ITruthPost(_articleWithdrawalTimelock, _winnerStakeMultiplier, _loserStakeMultiplier) {
+        uint256 _loserStakeMultiplier,
+        address payable _treasury
+    ) ITruthPost(_articleWithdrawalTimelock, _winnerStakeMultiplier, _loserStakeMultiplier,_treasury) {
         ARBITRATOR = _arbitrator;
         newCategory(_metaevidenceIpfsUri, _arbitratorExtraData);
     }
@@ -341,23 +342,40 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
         }
     }
 
-    /** @notice Lets you to transfer ownership of an article. This is useful when you want to change owner account without withdrawing and resubmitting.
+    /** @notice Updates the challenge tax rate of the contract to a new value.
+        @dev    The new challenge tax rate must be lower than the current one. 
+                Only the current administrator can call this function.
+        @param _newChallengeTaxRate The new challenge tax rate to be set.
     */
     function updateChallengeTaxRate(uint256 _newChallengeTaxRate) external onlyAdmin {
         require(challengeTaxRate > _newChallengeTaxRate, "You can't increase taxes.");
         challengeTaxRate = _newChallengeTaxRate;
     }
 
+    /** @notice Transfers the balance of the contract to the treasury. 
+        @dev    Allows the contract to send its entire balance to the treasury address.
+                It is important to ensure that the treasury address is set correctly.
+                If the transfer fails, an exception will be raised, and the funds will remain in the contract.
+    */
     function transferBalanceToTreasury() public {
         TREASURY.send(address(this).balance);
     }
 
-    /** @notice Lets you to transfer ownership of an article. This is useful when you want to change owner account without withdrawing and resubmitting.
+    /** @notice Changes the administrator of the contract to a new address.
+        @dev    Only the current administrator can call this function.
+        @param  _newAdmin The address of the new administrator.
     */
     function changeAdmin(address payable _newAdmin) external onlyAdmin {
         admin = _newAdmin;
     }
 
+   /**  @notice Changes the treasury address of the contract to a new address.
+        @dev    Only the current administrator can call this function.
+        @param  _newTreasury The address of the new treasury.
+    */
+    function changeTreasury(address payable _newTreasury) external onlyAdmin {
+        TREASURY = _newTreasury;
+    }
 
     /** @notice Initialize a category.
         @param _metaevidenceIpfsUri IPFS content identifier for metaevidence.
