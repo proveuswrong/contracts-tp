@@ -348,7 +348,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
         challengeTaxRate = _newChallengeTaxRate;
     }
 
-    function transferBalanceToTreasury() public onlyAdmin {
+    function transferBalanceToTreasury() public {
         TREASURY.send(address(this).balance);
     }
 
