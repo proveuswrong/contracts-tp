@@ -343,12 +343,12 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     }
 
     /** @notice Updates the challenge tax rate of the contract to a new value.
-        @dev    The new challenge tax rate must be lower than the current one. 
+        @dev    The new challenge tax rate must be at most 25% based on MULTIPLIER_DENOMINATOR. 
                 Only the current administrator can call this function.
         @param _newChallengeTaxRate The new challenge tax rate to be set.
     */
     function updateChallengeTaxRate(uint256 _newChallengeTaxRate) external onlyAdmin {
-        require(challengeTaxRate > _newChallengeTaxRate, "You can't increase taxes.");
+        require(_newChallengeTaxRate <= 256, "The tax rate can only be increased by a maximum of 25%");
         challengeTaxRate = _newChallengeTaxRate;
     }
 
