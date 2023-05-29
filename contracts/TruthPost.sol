@@ -404,7 +404,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
         Article storage article = articleStorage[_articleStorageAddress];
 
         uint256 arbitrationFee = ARBITRATOR.arbitrationCost(categoryToArbitratorExtraData[article.category]);
-        uint256 challengeTax = (article.bountyAmount * challengeTaxRate) / MULTIPLIER_DENOMINATOR;
+        uint256 challengeTax = ((uint96(article.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE)* challengeTaxRate) / MULTIPLIER_DENOMINATOR;
 
         return arbitrationFee + challengeTax;
     }
