@@ -142,18 +142,17 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     /// @inheritdoc ITruthPost
     function challenge(uint80 _articleStorageAddress) external payable override {
         Article storage article = articleStorage[_articleStorageAddress];
+        require(article.bountyAmount > 0, "Nothing to challenge.");
         require(article.withdrawalPermittedAt != type(uint32).max, "There is an ongoing challenge.");
         article.withdrawalPermittedAt = type(uint32).max;
         // Mark as challenged.
 
         require(msg.value >= challengeFee(_articleStorageAddress), "Insufficient funds to challenge.");
 
-        treasuryBalance += ((uint96(article.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE) * challengeTaxRate) / MULTIPLIER_DENOMINATOR;
+        uint taxAmount = ((uint96(article.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE) * challengeTaxRate) / MULTIPLIER_DENOMINATOR;
+        treasuryBalance += taxAmount;
 
-        // To prevent mistakes.
-        require(article.bountyAmount > 0, "Nothing to challenge.");
-
-        uint256 disputeID = ARBITRATOR.createDispute{value : msg.value}(NUMBER_OF_RULING_OPTIONS, categoryToArbitratorExtraData[article.category]);
+        uint256 disputeID = ARBITRATOR.createDispute{value :  msg.value - taxAmount }(NUMBER_OF_RULING_OPTIONS, categoryToArbitratorExtraData[article.category]);
 
         disputes[disputeID].challenger = payable(msg.sender);
         disputes[disputeID].rounds.push();
