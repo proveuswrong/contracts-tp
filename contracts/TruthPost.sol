@@ -358,7 +358,9 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
                 If the transfer fails, an exception will be raised, and the funds will remain in the contract.
     */
     function transferBalanceToTreasury() public {
-        TREASURY.send(address(this).balance);
+        uint256 amount = treasuryBalance;
+        treasuryBalance= 0;
+        TREASURY.send(amount);
     }
 
     /** @notice Changes the administrator of the contract to a new address.
