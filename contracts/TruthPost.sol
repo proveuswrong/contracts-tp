@@ -148,7 +148,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
 
         require(msg.value >= challengeFee(_articleStorageAddress), "Insufficient funds to challenge.");
 
-        treasuryBalance += (article.bountyAmount * challengeTaxRate) / MULTIPLIER_DENOMINATOR;
+        treasuryBalance += ((uint96(article.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE) * challengeTaxRate) / MULTIPLIER_DENOMINATOR;
 
         // To prevent mistakes.
         require(article.bountyAmount > 0, "Nothing to challenge.");
