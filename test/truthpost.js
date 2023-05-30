@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { BigNumber } = ethers;
 const crypto = require("crypto");
-const { constants } = require("ethers");
+const { constants, utils } = require("ethers");
 
 const EXAMPLE_IPFS_CIDv1 = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
 const ANOTHER_EXAMPLE_IPFS_CIDv1 = "bafybeigdyrzt5sfp7OKOKAHLSKASLK2LK3JLlqabf3oclgtqy55fbzdi";
@@ -13,7 +13,7 @@ const APPEAL_WINDOW = 1000;
 const ONE_ETH = BigNumber.from(BigInt(1e18));
 const TWO_ETH = BigNumber.from(2).mul(BigNumber.from(BigInt(1e18)));
 const FIVE_ETH = BigNumber.from(5).mul(BigNumber.from(BigInt(1e18)));
-const TEN_ETH = BigNumber.from(1000).mul(BigNumber.from(BigInt(1e18)));
+const TEN_ETH = BigNumber.from(10).mul(BigNumber.from(BigInt(1e18)));
 
 const TIMELOCK_PERIOD = 1000000;
 
@@ -28,8 +28,8 @@ function sleep(ms) {
 
 describe("The Truth Post", () => {
   before("Deploying", async () => {
-    [deployer, author, supporter, challenger, innocentBystander] = await ethers.getSigners();
-    ({ arbitrator, truthPost } = await deployContracts(deployer));
+    [deployer, newAdmin, author, supporter, challenger, innocentBystander, treasury] = await ethers.getSigners();
+    ({ arbitrator, truthPost } = await deployContracts(deployer, treasury));
     await sleep(9000); // To wait for eth gas reporter to fetch data. Remove this line when the issue is fixed. https://github.com/cgewecke/hardhat-gas-reporter/issues/72
     NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = await truthPost.connect(deployer).NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE();
     MULTIPLIER_DENOMINATOR = await truthPost.connect(deployer).MULTIPLIER_DENOMINATOR();
@@ -94,7 +94,7 @@ describe("The Truth Post", () => {
       }
     });
 
-    it("Should challenge a article", async () => {
+    it("Should challenge an article", async () => {
       const ARTICLE_ADDRESS = 0;
 
       const challengeFee = await truthPost.connect(deployer).challengeFee(ARTICLE_ADDRESS);
@@ -113,7 +113,6 @@ describe("The Truth Post", () => {
 
     it("Should fund appeal of a dispute", async () => {
       const DISPUTE_ID = disputeCounter - 1;
-      const ARTICLE_ADDRESS = 0;
 
       await arbitrator.connect(deployer).giveRuling(DISPUTE_ID, RULING_OUTCOMES.ChallengeFailed, APPEAL_WINDOW);
       await ethers.provider.send("evm_increaseTime", [10]);
@@ -258,10 +257,59 @@ describe("The Truth Post", () => {
       expect(await truthPost.getAmountRemainsToBeRaised(DISPUTE_ID, RULING_OUTCOMES.Debunked)).to.eq(WINNER_FUNDING);
       expect(await truthPost.getAmountRemainsToBeRaised(DISPUTE_ID, RULING_OUTCOMES.ChallengeFailed)).to.eq(LOSER_FUNDING);
     });
+
+    it("Should collect correct amount of taxes", async () => {
+      const vacantSlotIndex = await truthPost.findVacantStorageSlot(0);
+      const bounty = TEN_ETH;
+
+      const args = [crypto.randomBytes(30).toString("hex"), 0, vacantSlotIndex];
+      await truthPost.connect(deployer).initializeArticle(...args, { value: bounty });
+
+      const challengeFee = await truthPost.challengeFee(vacantSlotIndex);
+
+      let storageTreasuryBalanceBefore = await truthPost.treasuryBalance();
+      await truthPost.connect(challenger).challenge(vacantSlotIndex, { value: challengeFee });
+      const storageTreasuryBalanceAfter = await truthPost.treasuryBalance();
+      const storageTreasuryBalanceDelta = storageTreasuryBalanceAfter.sub(storageTreasuryBalanceBefore);
+
+      const challengeTaxRate = await truthPost.challengeTaxRate();
+      const denominator = await truthPost.MULTIPLIER_DENOMINATOR();
+
+      expect(challengeTaxRate.mul(10000).div(denominator)).equal(storageTreasuryBalanceDelta.mul(10000).div(bounty));
+
+      storageTreasuryBalanceBefore = storageTreasuryBalanceAfter;
+      const treasuryBalanceBefore = await ethers.provider.getBalance(treasury.address);
+      await truthPost.connect(deployer).transferBalanceToTreasury();
+      const treasuryBalanceAfter = await ethers.provider.getBalance(treasury.address);
+      const treasuryBalanceDelta = treasuryBalanceAfter.sub(treasuryBalanceBefore);
+
+      expect(storageTreasuryBalanceBefore).equal(treasuryBalanceDelta);
+      expect(await truthPost.treasuryBalance()).equal(BigNumber.from(0));
+    });
+
+    it("should not allow to set a new admin", async () => {
+      await expect(truthPost.connect(newAdmin).changeAdmin(newAdmin.address)).to.be.reverted;
+    });
+
+    it("Should set a new admin", async () => {
+      await truthPost.connect(deployer).changeAdmin(newAdmin.address);
+      expect(await truthPost.admin()).equal(newAdmin.address);
+    });
+
+    it("Should allow only admin to set new tax rate", async () => {
+      const newTaxRate = 128;
+      await truthPost.connect(newAdmin).updateChallengeTaxRate(newTaxRate);
+      expect(await truthPost.challengeTaxRate()).equal(BigNumber.from(newTaxRate));
+    });
+
+    it("Should not allow to increase the tax rate more than 25%", async () => {
+      await expect(truthPost.connect(newAdmin).updateChallengeTaxRate(512))
+        .to.be.revertedWith("The tax rate can only be increased by a maximum of 25%");
+    });
   });
 });
 
-async function deployContracts(deployer) {
+async function deployContracts(deployer, treasury) {
   const SHARE_DENOMINATOR = 1_000_000;
   const MIN_FUND_INCREASE_PERCENT = 25;
   const MIN_BOUNTY = ONE_ETH.div(BigNumber.from(1e3));
@@ -272,7 +320,7 @@ async function deployContracts(deployer) {
 
   const TruthPost = await ethers.getContractFactory("TruthPost", deployer);
   // const truthPost = await PMW.deploy({ arbitrator: arbitrator.address, arbitratorExtraData: "0x00" }, SHARE_DENOMINATOR, MIN_FUND_INCREASE_PERCENT, MIN_BOUNTY);
-  const truthPost = await TruthPost.deploy(arbitrator.address, "0x00", "Metaevidence", TIMELOCK_PERIOD, WINNER_STAKE_MULTIPLIER, LOSER_STAKE_MULTIPLIER);
+  const truthPost = await TruthPost.deploy(arbitrator.address, "0x00", "Metaevidence", TIMELOCK_PERIOD, WINNER_STAKE_MULTIPLIER, LOSER_STAKE_MULTIPLIER, treasury.address);
 
   await truthPost.deployed();
 

@@ -1,35 +1,21 @@
-/**
- * SPDX-License-Identifier: MIT
- * @authors: @0xferit
- * @reviewers: [@shalzz*, @jaybuidl*]
- * @auditors: []
- * @bounties: []
- * @deployments: []
- */
+/// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.10;
 
 import "@kleros/dispute-resolver-interface-contract/contracts/IDisputeResolver.sol";
 import "./ITruthPost.sol";
 
-/** @title  The Trust Post
-    @notice Smart contract for a type of curation, where submitted items are on hold until they are withdrawn and the amount of security deposits are determined by submitters.
-    @dev    Articles are not addressed with their identifiers. That enables us to reuse same storage address for another article later.
-            Arbitrator is fixed, but subcourts, jury size and metaevidence are not.
-            We prevent articles to get withdrawn immediately. This is to prevent submitter to escape punishment in case someone discovers an argument to debunk the article.
-            Bounty amounts are compressed with a lossy compression method to save on storage cost.
- */
+/// @title  The Trust Post
+/// @author https://github.com/proveuswrong<0xferit, @gratestas>
+/// @notice Smart contract for a type of curation, where submitted items are on hold until they are withdrawn and the amount of security deposits are determined by submitters.
+/// @dev    You should target ITruthPost interface contract for building on top. Otherwise you risk incompatibility across versions.
+///         Articles are not addressed with their identifiers. That enables us to reuse same storage address for another article later.///         Arbitrator is fixed, but subcourts, jury size and metaevidence are not.
+///         We prevent articles to get withdrawn immediately. This is to prevent submitter to escape punishment in case someone discovers an argument to debunk the article.
+///         Bounty amounts are compressed with a lossy compression method to save on storage cost.
+/// @custom:approvals 0xferit, @gratestas
 contract TruthPost is ITruthPost, IArbitrable, IEvidence {
   IArbitrator public immutable ARBITRATOR;
-  uint256 public constant NUMBER_OF_RULING_OPTIONS = 2;
   uint256 public constant NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = 32; // To compress bounty amount to gain space in struct. Lossy compression.
-  uint256 public immutable WINNER_STAKE_MULTIPLIER; // Multiplier of the arbitration cost that the winner has to pay as fee stake for a round in basis points.
-  uint256 public immutable LOSER_STAKE_MULTIPLIER; // Multiplier of the arbitration cost that the loser has to pay as fee stake for a round in basis points.
-  uint256 public constant LOSER_APPEAL_PERIOD_MULTIPLIER = 512; // Multiplier of the appeal period for losers (any other ruling options) in basis points. The loser is given less time to fund its appeal to defend against last minute appeal funding attacks.
-  uint256 public constant MULTIPLIER_DENOMINATOR = 1024; // Denominator for multipliers.
-
-  uint256 public challengeTaxRate = 16;
-  uint256 public treasuryBalance;
 
   uint8 public categoryCounter = 0;
 
@@ -74,20 +60,14 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     string memory _metaevidenceIpfsUri,
     uint256 _articleWithdrawalTimelock,
     uint256 _winnerStakeMultiplier,
-    uint256 _loserStakeMultiplier
-  ) ITruthPost(_articleWithdrawalTimelock) {
+    uint256 _loserStakeMultiplier,
+    address payable _treasury
+  ) ITruthPost(_articleWithdrawalTimelock, _winnerStakeMultiplier, _loserStakeMultiplier, _treasury) {
     ARBITRATOR = _arbitrator;
-    WINNER_STAKE_MULTIPLIER = _winnerStakeMultiplier;
-    LOSER_STAKE_MULTIPLIER = _loserStakeMultiplier;
-
     newCategory(_metaevidenceIpfsUri, _arbitratorExtraData);
   }
 
-  /** @notice Initializes an article.
-      @param _articleID Unique identifier of an article. Usually an IPFS content identifier.
-      @param _category Article category. This changes which metaevidence will be used.
-      @param _searchPointer Starting point of the search. Find a vacant storage slot before calling this function to minimize gas cost.
-   */
+  /// @inheritdoc ITruthPost
   function initializeArticle(
     string calldata _articleID,
     uint8 _category,
@@ -108,20 +88,18 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
 
     uint256 articleStorageAddress = _searchPointer - 1;
     emit NewArticle(_articleID, _category, articleStorageAddress);
-    emit BalanceUpdate(articleStorageAddress, uint256(article.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
+    emit BalanceUpdate(
+      articleStorageAddress,
+      uint256(article.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE
+    );
   }
 
-  /** @notice Lets you submit evidence as defined in evidence (ERC-1497) standard.
-      @param _disputeID Dispute ID as in arbitrator.
-      @param _evidenceURI IPFS content identifier of the evidence.
-   */
+  /// @inheritdoc ITruthPost
   function submitEvidence(uint256 _disputeID, string calldata _evidenceURI) external override {
     emit Evidence(ARBITRATOR, _disputeID, msg.sender, _evidenceURI);
   }
 
-  /** @notice Lets you increase a bounty of a live article.
-      @param _articleStorageAddress The address of the article in the storage.
-   */
+  /// @inheritdoc ITruthPost
   function increaseBounty(uint80 _articleStorageAddress) external payable override {
     Article storage article = articleStorage[_articleStorageAddress];
     require(msg.sender == article.owner, "Only author can increase bounty of an article.");
@@ -129,13 +107,13 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
 
     article.bountyAmount += uint56(msg.value >> NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
 
-    emit BalanceUpdate(_articleStorageAddress, uint256(article.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE);
+    emit BalanceUpdate(
+      _articleStorageAddress,
+      uint256(article.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE
+    );
   }
 
-  /** @notice Lets a author to start withdrawal process.
-      @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process.
-      @param _articleStorageAddress The address of the article in the storage.
-   */
+  /// @inheritdoc ITruthPost
   function initiateWithdrawal(uint80 _articleStorageAddress) external override {
     Article storage article = articleStorage[_articleStorageAddress];
     require(msg.sender == article.owner, "Only author can withdraw an article.");
@@ -145,16 +123,16 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     emit TimelockStarted(_articleStorageAddress);
   }
 
-  /** @notice Executes a withdrawal. Can only be executed by author.
-      @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start withdrawal process.
-      @param _articleStorageAddress The address of the article in the storage.
-   */
+  /// @inheritdoc ITruthPost
   function withdraw(uint80 _articleStorageAddress) external override {
     Article storage article = articleStorage[_articleStorageAddress];
 
     require(msg.sender == article.owner, "Only author can withdraw an article.");
     require(article.withdrawalPermittedAt != 0, "You need to initiate withdrawal first.");
-    require(article.withdrawalPermittedAt <= block.timestamp, "You need to wait for timelock or wait until the challenge ends.");
+    require(
+      article.withdrawalPermittedAt <= block.timestamp,
+      "You need to wait for timelock or wait until the challenge ends."
+    );
 
     uint256 withdrawal = uint96(article.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE;
     article.bountyAmount = 0;
@@ -165,24 +143,24 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     emit ArticleWithdrawn(_articleStorageAddress);
   }
 
-  /** @notice Challenges the article at the given storage address. Follow events to find out which article resides in which slot.
-      @dev withdrawalPermittedAt has some special values: 0 indicates withdrawal possible but process not started yet, max value indicates there is a challenge and during challenge it's forbidden to start another challenge.
-      @param _articleStorageAddress The address of the article in the storage.
-   */
-  function challenge(uint80 _articleStorageAddress) public payable override {
+  /// @inheritdoc ITruthPost
+  function challenge(uint80 _articleStorageAddress) external payable override {
     Article storage article = articleStorage[_articleStorageAddress];
+    require(article.bountyAmount > 0, "Nothing to challenge.");
     require(article.withdrawalPermittedAt != type(uint32).max, "There is an ongoing challenge.");
     article.withdrawalPermittedAt = type(uint32).max;
     // Mark as challenged.
 
     require(msg.value >= challengeFee(_articleStorageAddress), "Insufficient funds to challenge.");
 
-    treasuryBalance += (article.bountyAmount * challengeTaxRate) / MULTIPLIER_DENOMINATOR;
+    uint taxAmount = ((uint96(article.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE) * challengeTaxRate) /
+      MULTIPLIER_DENOMINATOR;
+    treasuryBalance += taxAmount;
 
-    // To prevent mistakes.
-    require(article.bountyAmount > 0, "Nothing to challenge.");
-
-    uint256 disputeID = ARBITRATOR.createDispute{value: msg.value}(NUMBER_OF_RULING_OPTIONS, categoryToArbitratorExtraData[article.category]);
+    uint256 disputeID = ARBITRATOR.createDispute{value: msg.value - taxAmount}(
+      NUMBER_OF_RULING_OPTIONS,
+      categoryToArbitratorExtraData[article.category]
+    );
 
     disputes[disputeID].challenger = payable(msg.sender);
     disputes[disputeID].rounds.push();
@@ -195,11 +173,11 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     emit Challenge(_articleStorageAddress, msg.sender, disputeID);
   }
 
-  /** @notice Lets you fund a crowdfunded appeal. In case of funding is incomplete, you will be refunded. Withdrawal will be carried out using withdrawFeesAndRewards function.
-      @param _disputeID The dispute ID as in the arbitrator.
-      @param _supportedRuling The supported ruling in this funding.
-   */
-  function fundAppeal(uint256 _disputeID, RulingOptions _supportedRuling) external payable override returns (bool fullyFunded) {
+  /// @inheritdoc ITruthPost
+  function fundAppeal(
+    uint256 _disputeID,
+    RulingOptions _supportedRuling
+  ) external payable override returns (bool fullyFunded) {
     DisputeData storage dispute = disputes[_disputeID];
 
     RulingOptions currentRuling = RulingOptions(ARBITRATOR.currentRuling(_disputeID));
@@ -216,7 +194,9 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
         multiplier = WINNER_STAKE_MULTIPLIER;
       } else {
         require(
-          block.timestamp < (appealWindowStart + (((appealWindowEnd - appealWindowStart) * LOSER_APPEAL_PERIOD_MULTIPLIER) / MULTIPLIER_DENOMINATOR)),
+          block.timestamp <
+            (appealWindowStart +
+              (((appealWindowEnd - appealWindowStart) * LOSER_APPEAL_PERIOD_MULTIPLIER) / MULTIPLIER_DENOMINATOR)),
           "Funding must be made within the first half appeal period."
         );
 
@@ -256,7 +236,9 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
       emit RulingFunded(_disputeID, lastRoundIndex, _supportedRuling);
     }
 
-    if (lastRound.hasPaid[uint256(RulingOptions.ChallengeFailed)] && lastRound.hasPaid[uint256(RulingOptions.Debunked)]) {
+    if (
+      lastRound.hasPaid[uint256(RulingOptions.ChallengeFailed)] && lastRound.hasPaid[uint256(RulingOptions.Debunked)]
+    ) {
       dispute.rounds.push();
       lastRound.totalClaimableAfterExpenses -= basicCost;
       ARBITRATOR.appeal{value: basicCost}(_disputeID, categoryToArbitratorExtraData[dispute.articleCategory]);
@@ -268,10 +250,10 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     return lastRound.hasPaid[uint256(supportedRulingOutcome)];
   }
 
-  /** @notice For arbitrator to call, to execute it's ruling. In case arbitrator rules in favor of challenger, challenger wins the bounty. In any case, withdrawalPermittedAt will be reset.
-      @param _disputeID The dispute ID as in the arbitrator.
-      @param _ruling The ruling that arbitrator gave.
-   */
+  /// @notice Execute a ruling
+  /// @dev This is only for arbitrator to use.
+  /// @param _disputeID The dispute ID as in arbitrator.
+  /// @param _ruling Winning ruling option.
   function rule(uint256 _disputeID, uint256 _ruling) external override {
     require(IArbitrator(msg.sender) == ARBITRATOR);
 
@@ -309,15 +291,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     emit Ruling(IArbitrator(msg.sender), _disputeID, _ruling);
   }
 
-
-
-  /** @notice Allows to withdraw any rewards or reimbursable fees after the dispute gets resolved. For all rounds at once.
-      This function has O(mn) time complexity where m is number of rounds and n is number of ruling options.
-      It is safe to assume m is always less than 10 as appeal cost growth order is O(2^m).
-      When number of rulings options are high, this function can run out of gas.
-      @param _disputeID ID of the dispute as in arbitrator.
-      @param _contributor The address whose rewards to withdraw.
-   */
+  /// @inheritdoc ITruthPost
   function withdrawFeesAndRewardsForAllRoundsAndAllRulings(
     uint256 _disputeID,
     address payable _contributor
@@ -325,18 +299,12 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     DisputeData storage dispute = disputes[_disputeID];
     uint256 noOfRounds = dispute.rounds.length;
     for (uint256 roundNumber = 0; roundNumber < noOfRounds; roundNumber++) {
-      for(uint256 rulingOption = 0; rulingOption <= NUMBER_OF_RULING_OPTIONS; rulingOption++)
-      withdrawFeesAndRewards(_disputeID, _contributor, roundNumber, RulingOptions(rulingOption));
+      for (uint256 rulingOption = 0; rulingOption <= NUMBER_OF_RULING_OPTIONS; rulingOption++)
+        withdrawFeesAndRewards(_disputeID, _contributor, roundNumber, RulingOptions(rulingOption));
     }
   }
 
-  /** @notice Allows to withdraw any rewards or reimbursable fees after the dispute gets resolved. For all rounds at once.
-      This function has O(m) time complexity where m is number of rounds.
-      It is safe to assume m is always less than 10 as appeal cost growth order is O(2^m).
-      @param _disputeID ID of the dispute as in arbitrator.
-      @param _contributor The address whose rewards to withdraw.
-      @param _ruling Ruling that received contributions from contributor.
-   */
+  /// @inheritdoc ITruthPost
   function withdrawFeesAndRewardsForAllRounds(
     uint256 _disputeID,
     address payable _contributor,
@@ -349,12 +317,12 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     }
   }
 
-
+  /// @inheritdoc ITruthPost
   function withdrawFeesAndRewardsForGivenPositions(
     uint256 _disputeID,
     address payable _contributor,
     uint[][] calldata positions
-  ) external {
+  ) external override {
     for (uint256 roundNumber = 0; roundNumber < positions.length; roundNumber++) {
       for (uint256 rulingOption = 0; rulingOption < positions[roundNumber].length; rulingOption++) {
         if (positions[roundNumber][rulingOption] > 0) {
@@ -364,13 +332,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     }
   }
 
-  /** @notice Allows to withdraw any reimbursable fees or rewards after the dispute gets solved.
-      @param _disputeID ID of the dispute as in arbitrator.
-      @param _contributor The address whose rewards to withdraw.
-      @param _roundNumber The number of the round caller wants to withdraw from.
-      @param _ruling Ruling that received contribution from contributor.
-      @return amount The amount available to withdraw for given question, contributor, round number and ruling option.
-   */
+  /// @inheritdoc ITruthPost
   function withdrawFeesAndRewards(
     uint256 _disputeID,
     address payable _contributor,
@@ -392,28 +354,43 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     }
   }
 
-  /** @notice Lets you to transfer ownership of an article. This is useful when you want to change owner account without withdrawing and resubmitting.
-   */
+  /// @notice Updates the challenge tax rate of the contract to a new value.
+  /// @dev    The new challenge tax rate must be at most 25% based on MULTIPLIER_DENOMINATOR.
+  ///         Only the current administrator can call this function.
+  /// @param _newChallengeTaxRate The new challenge tax rate to be set.
+  ///
   function updateChallengeTaxRate(uint256 _newChallengeTaxRate) external onlyAdmin {
-    require(challengeTaxRate > _newChallengeTaxRate, "You can't increase taxes.");
+    require(_newChallengeTaxRate <= 256, "The tax rate can only be increased by a maximum of 25%");
     challengeTaxRate = _newChallengeTaxRate;
   }
 
-  /** @notice Lets you to transfer ownership of an article. This is useful when you want to change owner account without withdrawing and resubmitting.
-   */
+  /// @notice Transfers the balance of the contract to the treasury.
+  /// @dev    Allows the contract to send its entire balance to the treasury address.
+  ///         It is important to ensure that the treasury address is set correctly.
+  ///         If the transfer fails, an exception will be raised, and the funds will remain in the contract.
+  function transferBalanceToTreasury() public {
+    uint256 amount = treasuryBalance;
+    treasuryBalance = 0;
+    TREASURY.send(amount);
+  }
+
+  /// @notice Changes the administrator of the contract to a new address.
+  /// @dev    Only the current administrator can call this function.
+  /// @param  _newAdmin The address of the new administrator.
   function changeAdmin(address payable _newAdmin) external onlyAdmin {
     admin = _newAdmin;
   }
 
-  /** @notice TODO. This function should use treasuryBalance to buy a token and send it to 0x0.
-   */
-  function buyAndBurn() external onlyAdmin {}
+  /// @notice Changes the treasury address of the contract to a new address.
+  /// @dev    Only the current administrator can call this function.
+  /// @param  _newTreasury The address of the new treasury.
+  function changeTreasury(address payable _newTreasury) external onlyAdmin {
+    TREASURY = _newTreasury;
+  }
 
-  /** @notice Initializes a category.
-      @param _metaevidenceIpfsUri IPFS content identifier for metaevidence.
-            @param _arbitratorExtraData Extra data of Kleros arbitrator, signaling subcourt and jury size selection.
-
-   */
+  /// @notice Initialize a category.
+  ///   @param _metaevidenceIpfsUri IPFS content identifier for metaevidence.
+  ///    @param _arbitratorExtraData Extra data of Kleros arbitrator, signaling subcourt and jury size selection.
   function newCategory(string memory _metaevidenceIpfsUri, bytes memory _arbitratorExtraData) public {
     require(categoryCounter + 1 != 0, "No space left for a new category");
     emit MetaEvidence(categoryCounter, _metaevidenceIpfsUri);
@@ -422,34 +399,31 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     categoryCounter++;
   }
 
-  /** @notice Lets you to transfer ownership of an article. This is useful when you want to change owner account without withdrawing and resubmitting.
-   */
+  /// @notice Lets you to transfer ownership of an article. This is useful when you want to change owner account without withdrawing and resubmitting.
   function transferOwnership(uint80 _articleStorageAddress, address payable _newOwner) external override {
     Article storage article = articleStorage[_articleStorageAddress];
     require(msg.sender == article.owner, "Only author can transfer ownership.");
     article.owner = _newOwner;
   }
 
-  /** @notice Returns the total amount needs to be paid to challenge an article.
-   */
+  /// @inheritdoc ITruthPost
   function challengeFee(uint80 _articleStorageAddress) public view override returns (uint256) {
     Article storage article = articleStorage[_articleStorageAddress];
 
     uint256 arbitrationFee = ARBITRATOR.arbitrationCost(categoryToArbitratorExtraData[article.category]);
-    uint256 challengeTax = (article.bountyAmount * challengeTaxRate) / MULTIPLIER_DENOMINATOR;
+    uint256 challengeTax = ((uint96(article.bountyAmount) << NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE) *
+      challengeTaxRate) / MULTIPLIER_DENOMINATOR;
 
     return arbitrationFee + challengeTax;
   }
 
-  /** @notice Returns the total amount needs to be paid to appeal a dispute.
-   */
+  /// @inheritdoc ITruthPost
   function appealFee(uint256 _disputeID) external view override returns (uint256 arbitrationFee) {
     DisputeData storage dispute = disputes[_disputeID];
     arbitrationFee = ARBITRATOR.appealCost(_disputeID, categoryToArbitratorExtraData[dispute.articleCategory]);
   }
 
-  /** @notice Helper function to find a vacant slot for article. Use this function before calling initialize to minimize your gas cost.
-   */
+  /// @inheritdoc ITruthPost
   function findVacantStorageSlot(uint80 _searchPointer) external view override returns (uint256 vacantSlotIndex) {
     Article storage article;
     do {
@@ -459,14 +433,11 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     return _searchPointer - 1;
   }
 
-  /** @notice Returns the sum of withdrawable amount.
-      This function has O(m) time complexity where m is number of rounds.
-      It is safe to assume m is always less than 10 as appeal cost growth order is O(m^2).
-   */
+  /// @inheritdoc ITruthPost
   function getTotalWithdrawableAmount(
     uint256 _disputeID,
     address payable _contributor
-  ) external view override returns (uint256 sum,  uint256[][] memory amounts) {
+  ) external view override returns (uint256 sum, uint256[][] memory amounts) {
     DisputeData storage dispute = disputes[_disputeID];
     if (!dispute.resolved) return (uint256(0), amounts);
     uint256 noOfRounds = dispute.rounds.length;
@@ -477,10 +448,9 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
       amounts[roundNumber] = new uint256[](NUMBER_OF_RULING_OPTIONS + 1);
 
       Round storage round = dispute.rounds[roundNumber];
-      for(uint256 rulingOption = 0; rulingOption <= NUMBER_OF_RULING_OPTIONS; rulingOption++)
-      {
+      for (uint256 rulingOption = 0; rulingOption <= NUMBER_OF_RULING_OPTIONS; rulingOption++) {
         uint currentAmount = getWithdrawableAmount(round, _contributor, RulingOptions(rulingOption), finalRuling);
-        if(currentAmount > 0){
+        if (currentAmount > 0) {
           sum += getWithdrawableAmount(round, _contributor, RulingOptions(rulingOption), finalRuling);
           amounts[roundNumber][rulingOption] = currentAmount;
         }
@@ -488,9 +458,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     }
   }
 
-
-  /** @notice Returns withdrawable amount for given parameters.
-   */
+  /// @notice Returns withdrawable amount for given parameters.
   function getWithdrawableAmount(
     Round storage _round,
     address _contributor,
@@ -507,20 +475,27 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
       if (_ruling == _finalRuling) {
         // This ruling option is the ultimate winner.
         amount = _round.totalPerRuling[uint256(givenRuling)] > 0
-          ? (_round.contributions[_contributor][uint256(givenRuling)] * _round.totalClaimableAfterExpenses) / _round.totalPerRuling[uint256(givenRuling)]
+          ? (_round.contributions[_contributor][uint256(givenRuling)] * _round.totalClaimableAfterExpenses) /
+            _round.totalPerRuling[uint256(givenRuling)]
           : 0;
       } else if (!_round.hasPaid[uint256(RulingOptions(_finalRuling))]) {
         // The ultimate winner was not funded in this round. Contributions discounting the appeal fee are reimbursed proportionally.
         amount =
           (_round.contributions[_contributor][uint256(givenRuling)] * _round.totalClaimableAfterExpenses) /
-          (_round.totalPerRuling[uint256(RulingOptions.ChallengeFailed)] + _round.totalPerRuling[uint256(RulingOptions.Debunked)]);
+          (_round.totalPerRuling[uint256(RulingOptions.ChallengeFailed)] +
+            _round.totalPerRuling[uint256(RulingOptions.Debunked)]);
       }
     }
   }
 
-  function getRoundInfo(uint256 _disputeID, uint256 _round)
+  /// @inheritdoc ITruthPost
+  function getRoundInfo(
+    uint256 _disputeID,
+    uint256 _round
+  )
     external
     view
+    override
     returns (
       bool[NUMBER_OF_RULING_OPTIONS + 1] memory hasPaid,
       uint256[NUMBER_OF_RULING_OPTIONS + 1] memory totalPerRuling,
@@ -531,26 +506,41 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     return (round.hasPaid, round.totalPerRuling, round.totalClaimableAfterExpenses);
   }
 
-  function getLastRoundWinner(uint256 _disputeID) public view returns (uint256) {
+  /// @inheritdoc ITruthPost
+  function getLastRoundWinner(uint256 _disputeID) public view override returns (uint256) {
     return ARBITRATOR.currentRuling(_disputeID);
   }
 
-  function getAppealPeriod(uint256 _disputeID, RulingOptions _ruling) external view returns (uint256, uint256) {
+  /// @inheritdoc ITruthPost
+  function getAppealPeriod(
+    uint256 _disputeID,
+    RulingOptions _ruling
+  ) external view override returns (uint256, uint256) {
     (uint256 appealWindowStart, uint256 appealWindowEnd) = ARBITRATOR.appealPeriod(_disputeID);
-    uint256 loserAppealWindowEnd = appealWindowStart + (((appealWindowEnd - appealWindowStart) * LOSER_APPEAL_PERIOD_MULTIPLIER) / MULTIPLIER_DENOMINATOR);
+    uint256 loserAppealWindowEnd = appealWindowStart +
+      (((appealWindowEnd - appealWindowStart) * LOSER_APPEAL_PERIOD_MULTIPLIER) / MULTIPLIER_DENOMINATOR);
 
     bool isWinner = RulingOptions(getLastRoundWinner(_disputeID)) == _ruling;
     return isWinner ? (appealWindowStart, appealWindowEnd) : (appealWindowStart, loserAppealWindowEnd);
   }
 
-  function getReturnOfInvestmentRatio(RulingOptions _ruling, RulingOptions _lastRoundWinner) external view returns (uint256) {
+  /// @inheritdoc ITruthPost
+  function getReturnOfInvestmentRatio(
+    RulingOptions _ruling,
+    RulingOptions _lastRoundWinner
+  ) external view override returns (uint256) {
     bool isWinner = _lastRoundWinner == _ruling;
     uint256 DECIMAL_PRECISION = 1000;
     uint256 multiplier = isWinner ? WINNER_STAKE_MULTIPLIER : LOSER_STAKE_MULTIPLIER;
-    return (((WINNER_STAKE_MULTIPLIER + LOSER_STAKE_MULTIPLIER + MULTIPLIER_DENOMINATOR) * DECIMAL_PRECISION) / (multiplier + MULTIPLIER_DENOMINATOR));
+    return (((WINNER_STAKE_MULTIPLIER + LOSER_STAKE_MULTIPLIER + MULTIPLIER_DENOMINATOR) * DECIMAL_PRECISION) /
+      (multiplier + MULTIPLIER_DENOMINATOR));
   }
 
-  function getAmountRemainsToBeRaised(uint256 _disputeID, RulingOptions _ruling) external view returns (uint256) {
+  /// @inheritdoc ITruthPost
+  function getAmountRemainsToBeRaised(
+    uint256 _disputeID,
+    RulingOptions _ruling
+  ) external view override returns (uint256) {
     DisputeData storage dispute = disputes[_disputeID];
     uint256 lastRoundIndex = dispute.rounds.length - 1;
     Round storage lastRound = dispute.rounds[lastRoundIndex];

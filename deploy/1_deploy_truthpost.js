@@ -16,6 +16,7 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
     42: "0x60B2AbfDfaD9c0873242f59f2A8c32A3Cc682f80",
     5: "0x1128eD55ab2d796fa92D2F8E1f336d745354a77A",
   };
+  const TREASURY = "0x387e8B40e332831b7a8ad629966df3E9f969C6ad";
 
   const primaryDocumentIPFSPath = "QmaUr6hnSVxYD899xdcn2GUVtXVjXoSXKZbce3zFtGWw4H/Question_Resolution_Policy.pdf";
 
@@ -50,7 +51,7 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
   const networks = {
     42: config.networks.kovan,
     1: config.networks.main,
-    5: config.networks.goerli
+    5: config.networks.goerli,
   };
   const web3provider = new providers.JsonRpcProvider(networks[chainId]);
   const accounts = await getUnnamedAccounts();
@@ -60,7 +61,7 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
   const contractInstance = deploy(contractName, {
     from: deployer,
     gasLimit: 4000000,
-    args: [KLEROS[chainId], generateArbitratorExtraData(SUBCOURT, NUMBER_OF_VOTES), metaevidenceURI, 300, 128, 256],
+    args: [KLEROS[chainId], generateArbitratorExtraData(SUBCOURT, NUMBER_OF_VOTES), metaevidenceURI, 300, 128, 256, TREASURY],
   });
   console.log("Tx sent. Waiting for confirmation.");
 
