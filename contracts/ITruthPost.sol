@@ -6,8 +6,8 @@ pragma solidity ^0.8.10;
 
 /** @title  The Truth Post: Accurate and Relevant News
     @author https://github.com/proveuswrong<0xferit, @gratestas>
-    @dev    This contract serves as an standard interface among multiple deployments of the Truth Post contracts.
-            You should target this interface contract when for interactions, not the concrete contract. Otherwise you risk incompatibility across versions.
+    @dev    This contract serves as a standard interface among multiple deployments of the Truth Post contracts.
+            You should target this interface contract for interactions, not the concrete contract; otherwise you risk incompatibility across versions.
     @custom:approvals 0xferit, @gratestas*
  */
 abstract contract ITruthPost {
@@ -19,8 +19,8 @@ abstract contract ITruthPost {
         Debunked
     }
 
-
-    address payable public TREASURY; 
+    address payable public TREASURY;
+    uint256 public treasuryBalance; 
     uint256 public constant NUMBER_OF_RULING_OPTIONS = 2;
     uint256 public constant MULTIPLIER_DENOMINATOR = 1024; // Denominator for multipliers.
     uint256 public constant LOSER_APPEAL_PERIOD_MULTIPLIER = 512; // Multiplier of the appeal period for losers (any other ruling options) in basis points. The loser is given less time to fund its appeal to defend against last minute appeal funding attacks.
@@ -28,7 +28,6 @@ abstract contract ITruthPost {
     uint256 public immutable WINNER_STAKE_MULTIPLIER; // Multiplier of the arbitration cost that the winner has to pay as fee stake for a round in basis points.
     uint256 public immutable LOSER_STAKE_MULTIPLIER; // Multiplier of the arbitration cost that the loser has to pay as fee stake for a round in basis points.
     uint256 public challengeTaxRate = 16;
-    uint256 public treasuryBalance;
 
     constructor(uint256 _articleWithdrawalTimelock, uint256 _winnerStakeMultiplier, uint256 _loserStakeMultiplier, address payable _treasury) {
         ARTICLE_WITHDRAWAL_TIMELOCK = _articleWithdrawalTimelock;
@@ -63,8 +62,8 @@ abstract contract ITruthPost {
 
     /** @notice Publish an article.
         @dev    Do not confuse articleID with articleAddress. Emits NewArticle.
-        @param _articleID Unique identifier of an article. Usually an IPFS content identifier.
-        @param _category Article category. This changes which metaevidence will be used.
+        @param _articleID Unique identifier of an article in IPFS content identifier format.
+        @param _category The category code of this new article.
         @param _searchPointer Starting point of the search. Find a vacant storage slot before calling this function to minimize gas cost.
     */
     function initializeArticle(
@@ -92,7 +91,7 @@ abstract contract ITruthPost {
     function withdraw(uint80 _articleStorageAddress) external virtual;
 
     /** @notice Challenge article.
-        @dev Challenges the article at the given storage address. Emit Challenge.
+        @dev Challenges the article at the given storage address. Emits Challenge.
         @param _articleStorageAddress The address of the article in the storage.
     */
     function challenge(uint80 _articleStorageAddress) external payable virtual;
@@ -111,7 +110,7 @@ abstract contract ITruthPost {
     function findVacantStorageSlot(uint80 _searchPointer) external view virtual returns (uint256 vacantSlotIndex);
 
     /** @notice Get required challenge fee.
-        @dev Returns the total amount needs to be paid to challenge an article.
+        @dev Returns the total amount needs to be paid to challenge an article, including taxes if any.
         @param _articleStorageAddress The address of article in the storage.
     */
     function challengeFee(uint80 _articleStorageAddress) public view virtual returns (uint256 challengeFee);
