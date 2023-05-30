@@ -6,13 +6,13 @@ import "@kleros/dispute-resolver-interface-contract/contracts/IDisputeResolver.s
 import "./ITruthPost.sol";
 
 /// @title  The Trust Post
-/// @author https://github.com/proveuswrong<0xferit, @gratestas>
+/// @author https://github.com/proveuswrong<0xferit, gratestas>
 /// @notice Smart contract for a type of curation, where submitted items are on hold until they are withdrawn and the amount of security deposits are determined by submitters.
 /// @dev    You should target ITruthPost interface contract for building on top. Otherwise you risk incompatibility across versions.
 ///         Articles are not addressed with their identifiers. That enables us to reuse same storage address for another article later.///         Arbitrator is fixed, but subcourts, jury size and metaevidence are not.
 ///         We prevent articles to get withdrawn immediately. This is to prevent submitter to escape punishment in case someone discovers an argument to debunk the article.
 ///         Bounty amounts are compressed with a lossy compression method to save on storage cost.
-/// @custom:approvals 0xferit, @gratestas
+/// @custom:approvals 0xferit, gratestas
 contract TruthPost is ITruthPost, IArbitrable, IEvidence {
   IArbitrator public immutable ARBITRATOR;
   uint256 public constant NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = 32; // To compress bounty amount to gain space in struct. Lossy compression.

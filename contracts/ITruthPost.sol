@@ -3,10 +3,10 @@
 pragma solidity ^0.8.10;
 
 /// @title  The Truth Post: Accurate and Relevant News
-/// @author https://github.com/proveuswrong<0xferit, @gratestas>
+/// @author https://github.com/proveuswrong<0xferit, gratestas>
 /// @dev    This contract serves as a standard interface among multiple deployments of the Truth Post contracts.
 ///         You should target this interface contract for interactions, not the concrete contract; otherwise you risk incompatibility across versions.
-/// @custom:approvals 0xferit, @gratestas
+/// @custom:approvals 0xferit, gratestas
 abstract contract ITruthPost {
   string public constant VERSION = "1.2.0";
 
