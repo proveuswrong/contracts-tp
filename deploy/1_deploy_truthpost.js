@@ -31,7 +31,7 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
             titles: ["Yes", "No"],
         },
         evidenceDisplayInterfaceURI: "/ipfs/QmTBEgtCXUTUB96WV2xi4VpK5eNVyhbBkiNhptqsg8wGwS/index.html",
-        dynamicScriptURI: "/ipfs/QmProYo7dHrHrocgs4PnU7FfpshMqtCMZ3GUCnKQdv2fEw/index.js",
+        dynamicScriptURI: "/ipfs/QmeQyLqXwGpUA3XXKhSzX2BGS2heqToce9RN8z6fyZJ3KW/index.js",
         fileURI: `/ipfs/${primaryDocumentIPFSPath}`,
         arbitrableChainID: chainId,
         arbitratorChainID: chainId,
