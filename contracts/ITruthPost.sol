@@ -16,6 +16,7 @@ abstract contract ITruthPost {
         Debunked
     }
 
+    bool isPublishingEnabled = true;
     address payable public TREASURY;
     uint256 public treasuryBalance;
     uint256 public constant NUMBER_OF_RULING_OPTIONS = 2;
@@ -231,4 +232,9 @@ abstract contract ITruthPost {
     /// @param _disputeID The dispute ID as in arbitrator.
     /// @return Winning ruling option.
     function getLastRoundWinner(uint256 _disputeID) public view virtual returns (uint256);
+
+    /// @notice Switches publishing lock.
+    /// @dev    Useful when it's no longer safe or secure to use this contract.
+    ///         Prevents new articles to be published. Only intended for privileges users.
+    function switchPublishingLock() public virtual;
 }

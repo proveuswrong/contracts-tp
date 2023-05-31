@@ -377,6 +377,11 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
         TREASURY.send(amount);
     }
 
+    /// @inheritdoc ITruthPost
+    function switchPublishingLock() public override onlyAdmin {
+        isPublishingEnabled = !isPublishingEnabled;
+    }
+
     /// @notice Changes the administrator of the contract to a new address.
     /// @dev    Only the current administrator can call this function.
     /// @param  _newAdmin The address of the new administrator.
@@ -567,4 +572,5 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
 
         return totalCost - raisedSoFar;
     }
+
 }
