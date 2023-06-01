@@ -22,20 +22,22 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
 
     const metaevidence = {
         category: "News",
-        title: "An Article of The Truth Post Was Challenged",
+        title: "An Article of Truth Post Was Challenged",
         description:
             "A news article of The Truth Post was challenged and a dispute between reporter and challenger has been raised.",
-        question: "Is this piece of news accurate according to this curation pool?",
+        question: "Is this article accurate according to the policy this curation pool?",
         rulingOptions: {
             type: "single-select",
             titles: ["Yes", "No"],
         },
-        evidenceDisplayInterfaceURI: "/ipfs/QmTBEgtCXUTUB96WV2xi4VpK5eNVyhbBkiNhptqsg8wGwS/index.html",
-        // dynamicScriptURI: "/ipfs/Qmb1p8FE79sYtnMTGUshhZkyN2kczJCcDZCiVqfbjxEdDd/index.js",
+        // evidenceDisplayInterfaceURI: "/ipfs/QmSaac2Xh2LCxKWoekmbWG2z2vM4DGjZmbcRhXqUkQpd3h/index.html",
+        dynamicScriptURI: "/ipfs/QmPzRn9yXKpSRdyJoYZ6dkjRDeazdWDtJ7k5agjRqDThzX/index.js",
         fileURI: `${primaryDocumentIPFSPath}`,
         arbitrableChainID: chainId,
         arbitratorChainID: chainId,
-        evidenceDisplayInterfaceRequiredParams: ["disputeID"],
+        evidenceDisplayInterfaceRequiredParams: ["disputeID", "arbitrableChainID"],
+        dynamicScriptRequiredParams: ["disputeID", "arbitrableChainID", "arbitrableContractAddress"],
+
         _v: "1.0.0",
     }
     const ipfsHashMetaEvidenceObj = await ipfsPublish(
