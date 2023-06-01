@@ -18,7 +18,7 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
     }
     const TREASURY = "0x387e8B40e332831b7a8ad629966df3E9f969C6ad"
 
-    const primaryDocumentIPFSPath = "QmaUr6hnSVxYD899xdcn2GUVtXVjXoSXKZbce3zFtGWw4H/Question_Resolution_Policy.pdf"
+    const primaryDocumentIPFSPath = "/ipfs/QmZQevKY9w7GYzyoHhmHYsEcF9N9jkU52gefqdLShiEaSh/NewsCurationPolicy.html"
 
     const metaevidence = {
         category: "News",
@@ -31,8 +31,8 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
             titles: ["Yes", "No"],
         },
         evidenceDisplayInterfaceURI: "/ipfs/QmTBEgtCXUTUB96WV2xi4VpK5eNVyhbBkiNhptqsg8wGwS/index.html",
-        dynamicScriptURI: "/ipfs/QmeQyLqXwGpUA3XXKhSzX2BGS2heqToce9RN8z6fyZJ3KW/index.js",
-        fileURI: `/ipfs/${primaryDocumentIPFSPath}`,
+        // dynamicScriptURI: "/ipfs/Qmb1p8FE79sYtnMTGUshhZkyN2kczJCcDZCiVqfbjxEdDd/index.js",
+        fileURI: `${primaryDocumentIPFSPath}`,
         arbitrableChainID: chainId,
         arbitratorChainID: chainId,
         evidenceDisplayInterfaceRequiredParams: ["disputeID"],
