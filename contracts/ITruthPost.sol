@@ -115,19 +115,22 @@ abstract contract ITruthPost {
     function challenge(uint80 _articleStorageAddress) external payable virtual;
 
     /// @notice Transfer ownership of an article.
-    /// @dev Lets you to transfer ownership of an article. This is useful when you want to change owner account without withdrawing and resubmitting.
+    /// @dev Lets you to transfer ownership of an article. 
+    ///      This is useful when you want to change owner account without withdrawing and resubmitting. 
+    ///      Emits OwnershipTransfer.
     /// @param _articleStorageAddress The address of article in the storage.
     /// @param _newOwner The new owner of the article which resides in the storage address, provided by the previous parameter.
     function transferOwnership(uint80 _articleStorageAddress, address payable _newOwner) external virtual;
 
-    /** @notice Update the arbitration cost for the winner.
-        @dev Sets the multiplier of the arbitration cost that the winner has to pay as fee stake to a new value. Emits WinnerStakeMultiplierUpdate.
-        @param _newWinnerStakeMultiplier The new value of WINNER_STAKE_MULTIPLIER.
-    */
+    /// @notice Update the arbitration cost for the winner.
+    /// @dev Sets the multiplier of the arbitration cost that the winner has to pay as fee stake to a new value. 
+    ///      Emits WinnerStakeMultiplierUpdate.
+    /// @param _newWinnerStakeMultiplier The new value of WINNER_STAKE_MULTIPLIER.
     function changeWinnerStakeMultiplier(uint256 _newWinnerStakeMultiplier) external virtual;
 
     /// @notice Update the arbitration cost for the loser.
-    /// @dev Sets the multiplier of the arbitration cost that the loser has to pay as fee stake to a new value. Emits LoserStakeMultiplierUpdate.
+    /// @dev Sets the multiplier of the arbitration cost that the loser has to pay as fee stake to a new value. 
+    ///      Emits LoserStakeMultiplierUpdate.
     /// @param _newLoserStakeMultiplier The new value of LOSER_STAKE_MULTIPLIER.
     
     function changeLoserStakeMultiplier(uint256 _newLoserStakeMultiplier) external virtual;
@@ -138,7 +141,8 @@ abstract contract ITruthPost {
     function changeLoserAppealPeriodMultiplier(uint256 _newLoserAppealPeriodMultiplier) external virtual;
 
     /// @notice Update the timelock for the article withdtrawal.
-    /// @dev Sets the timelock before an author can initiate the withdrawal of an article to a new value. Emits LoserAppealPeriodMultiplierUpdate.
+    /// @dev Sets the timelock before an author can initiate the withdrawal of an article to a new value. 
+    ///      Emits ArticleWithdrawalTimelockUpdate.
     /// @param _newArticleWithdrawalTimelock The new value of ARTICLE_WITHDRAWAL_TIMELOCK.
     function changeArticleWithdrawalTimelock(uint256 _newArticleWithdrawalTimelock) external virtual;
 

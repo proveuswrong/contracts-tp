@@ -360,17 +360,19 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
 
     /// @notice Updates the challenge tax rate of the contract to a new value.
     /// @dev    The new challenge tax rate must be at most 25% based on MULTIPLIER_DENOMINATOR.
-    ///         Only the current administrator can call this function.
+    ///         Only the current administrator can call this function. Emits ChallengeTaxRateUpdate.
     /// @param _newChallengeTaxRate The new challenge tax rate to be set.
     function updateChallengeTaxRate(uint256 _newChallengeTaxRate) external onlyAdmin {
         require(_newChallengeTaxRate <= 256, "The tax rate can only be increased by a maximum of 25%");
         challengeTaxRate = _newChallengeTaxRate;
+        emit ChallengeTaxRateUpdate(_newChallengeTaxRate);
     }
 
     /// @notice Transfers the balance of the contract to the treasury.
     /// @dev    Allows the contract to send its entire balance to the treasury address.
     ///         It is important to ensure that the treasury address is set correctly.
     ///         If the transfer fails, an exception will be raised, and the funds will remain in the contract.
+    ///         Emits TreasuryBalanceUpdate.
     function transferBalanceToTreasury() public {
         uint256 amount = treasuryBalance;
         treasuryBalance = 0;
@@ -384,7 +386,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     }
 
     /// @notice Changes the administrator of the contract to a new address.
-    /// @dev    Only the current administrator can call this function.
+    /// @dev    Only the current administrator can call this function. Emits AdminUpdate.
     /// @param  _newAdmin The address of the new administrator.
     function changeAdmin(address payable _newAdmin) external onlyAdmin {
         admin = _newAdmin;
@@ -392,7 +394,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     }
 
     /// @notice Changes the treasury address of the contract to a new address.
-    /// @dev    Only the current administrator can call this function.
+    /// @dev    Only the current administrator can call this function. Emits TreasuryUpdate.
     /// @param  _newTreasury The address of the new treasury.
     function changeTreasury(address payable _newTreasury) external onlyAdmin {
         TREASURY = _newTreasury;
@@ -435,7 +437,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
         categoryCounter++;
     }
 
-    /// @notice Lets you to transfer ownership of an article. This is useful when you want to change owner account without withdrawing and resubmitting.
+    /// @inheritdoc ITruthPost
     function transferOwnership(uint80 _articleStorageAddress, address payable _newOwner) external override {
         Article storage article = articleStorage[_articleStorageAddress];
         require(msg.sender == article.owner, "Only author can transfer ownership.");
