@@ -25,13 +25,13 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
         title: "An Article of Truth Post Was Challenged",
         description:
             "A news article of The Truth Post was challenged and a dispute between reporter and challenger has been raised.",
-        question: "Is this article accurate according to the policy this curation pool?",
+        question: "Is this article accurate according to the policy of this curation pool?",
         rulingOptions: {
             type: "single-select",
             titles: ["Yes", "No"],
         },
         // evidenceDisplayInterfaceURI: "/ipfs/QmSaac2Xh2LCxKWoekmbWG2z2vM4DGjZmbcRhXqUkQpd3h/index.html",
-        dynamicScriptURI: "/ipfs/QmPzRn9yXKpSRdyJoYZ6dkjRDeazdWDtJ7k5agjRqDThzX/index.js",
+        dynamicScriptURI: "/ipfs/QmaMdkAG4CL6ZWWAbJGeHdMGBbHQJM1hmA7gthq9aqYSRC/index.js\n",
         fileURI: `${primaryDocumentIPFSPath}`,
         arbitrableChainID: chainId,
         arbitratorChainID: chainId,
@@ -74,9 +74,9 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
             KLEROS[chainId],
             generateArbitratorExtraData(SUBCOURT, NUMBER_OF_VOTES),
             metaevidenceURI,
-            300,
-            128,
+            60 * 60 * 24 * 7,
             256,
+            384,
             TREASURY,
         ],
     })
