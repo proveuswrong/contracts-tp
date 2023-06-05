@@ -28,7 +28,7 @@ function sleep(ms) {
 
 describe("The Truth Post", () => {
   before("Deploying", async () => {
-    [deployer, newAdmin, author, supporter, challenger, innocentBystander, treasury] = await ethers.getSigners();
+    [deployer, newAdmin, author, supporter, challenger, innocentBystander, treasury, newTreasury] = await ethers.getSigners();
     ({ arbitrator, truthPost } = await deployContracts(deployer, treasury));
     await sleep(9000); // To wait for eth gas reporter to fetch data. Remove this line when the issue is fixed. https://github.com/cgewecke/hardhat-gas-reporter/issues/72
     NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE = await truthPost.connect(deployer).NUMBER_OF_LEAST_SIGNIFICANT_BITS_TO_IGNORE();
@@ -279,7 +279,11 @@ describe("The Truth Post", () => {
 
       storageTreasuryBalanceBefore = storageTreasuryBalanceAfter;
       const treasuryBalanceBefore = await ethers.provider.getBalance(treasury.address);
-      await truthPost.connect(deployer).transferBalanceToTreasury();
+
+      await expect(truthPost.connect(deployer).transferBalanceToTreasury())
+        .to.emit(truthPost, "TreasuryBalanceUpdate")
+        .withArgs(storageTreasuryBalanceBefore);
+
       const treasuryBalanceAfter = await ethers.provider.getBalance(treasury.address);
       const treasuryBalanceDelta = treasuryBalanceAfter.sub(treasuryBalanceBefore);
 
@@ -292,19 +296,79 @@ describe("The Truth Post", () => {
     });
 
     it("Should set a new admin", async () => {
-      await truthPost.connect(deployer).changeAdmin(newAdmin.address);
+      await expect(truthPost.connect(deployer).changeAdmin(newAdmin.address))
+        .to.emit(truthPost, "AdminUpdate")
+        .withArgs(newAdmin.address);
+
       expect(await truthPost.admin()).equal(newAdmin.address);
     });
 
     it("Should allow only admin to set new tax rate", async () => {
       const newTaxRate = 128;
-      await truthPost.connect(newAdmin).updateChallengeTaxRate(newTaxRate);
+
+      await expect(truthPost.connect(newAdmin).updateChallengeTaxRate(newTaxRate))
+        .to.emit(truthPost, "ChallengeTaxRateUpdate")
+        .withArgs(BigNumber.from(newTaxRate));
+
       expect(await truthPost.challengeTaxRate()).equal(BigNumber.from(newTaxRate));
     });
 
     it("Should not allow to increase the tax rate more than 25%", async () => {
       await expect(truthPost.connect(newAdmin).updateChallengeTaxRate(512))
         .to.be.revertedWith("The tax rate can only be increased by a maximum of 25%");
+    });
+    it("Should allow only admin to set new winnerStakeMultiplier", async () => {
+      const newWinnerStakeMultiplier = 200;
+
+      await expect(truthPost.connect(newAdmin).changeWinnerStakeMultiplier(newWinnerStakeMultiplier))
+        .to.emit(truthPost, "WinnerStakeMultiplierUpdate")
+        .withArgs(BigNumber.from(newWinnerStakeMultiplier));
+
+      expect(await truthPost.WINNER_STAKE_MULTIPLIER()).equal(BigNumber.from(newWinnerStakeMultiplier));
+      await expect(truthPost.connect(deployer).changeWinnerStakeMultiplier(BigNumber.from(2 * newWinnerStakeMultiplier))).to.be.reverted;
+    });
+
+    it("Should allow only admin to set new loserStakeMultiplier", async () => {
+      const newLoserStakeMultiplier = 200;
+
+      await expect(truthPost.connect(newAdmin).changeLoserStakeMultiplier(newLoserStakeMultiplier))
+        .to.emit(truthPost, "LoserStakeMultiplierUpdate")
+        .withArgs(BigNumber.from(newLoserStakeMultiplier));
+
+      expect(await truthPost.LOSER_STAKE_MULTIPLIER()).equal(BigNumber.from(newLoserStakeMultiplier));
+      await expect(truthPost.connect(deployer).changeLoserStakeMultiplier(BigNumber.from(2 * newLoserStakeMultiplier))).to.be.reverted;
+    });
+
+    it("Should allow only admin to set new loserAppealPeriodMultiplier", async () => {
+      const newLoserAppealPeriodMultiplier = 600;
+
+      await expect(truthPost.connect(newAdmin).changeLoserAppealPeriodMultiplier(newLoserAppealPeriodMultiplier))
+        .to.emit(truthPost, "LoserAppealPeriodMultiplierUpdate")
+        .withArgs(BigNumber.from(newLoserAppealPeriodMultiplier));
+
+      expect(await truthPost.LOSER_APPEAL_PERIOD_MULTIPLIER()).equal(BigNumber.from(newLoserAppealPeriodMultiplier));
+      await expect(truthPost.connect(deployer).changeLoserAppealPeriodMultiplier(BigNumber.from(2 * newLoserAppealPeriodMultiplier))).to.be.reverted;
+    });
+
+    it("Should allow only admin to set new articleWithdrawalTimelock", async () => {
+      const newArticleWithdrawalTimelock = 2000;
+
+      await expect(truthPost.connect(newAdmin).changeArticleWithdrawalTimelock(newArticleWithdrawalTimelock))
+        .to.emit(truthPost, "ArticleWithdrawalTimelockUpdate")
+        .withArgs(BigNumber.from(newArticleWithdrawalTimelock));
+
+      expect(await truthPost.ARTICLE_WITHDRAWAL_TIMELOCK()).equal(BigNumber.from(newArticleWithdrawalTimelock));
+      await expect(truthPost.connect(deployer).changeArticleWithdrawalTimelock(BigNumber.from(2 * newArticleWithdrawalTimelock))).to.be.reverted;
+    });
+
+    it("Should allow only admin to set new treasury", async () => {
+      await expect(truthPost.connect(newAdmin).changeTreasury(newTreasury.address))
+        .to.emit(truthPost, "TreasuryUpdate")
+        .withArgs(newTreasury.address);
+
+      expect(await truthPost.TREASURY()).equal(newTreasury.address);
+      const oldTreasury = treasury;
+      await expect(truthPost.connect(deployer).changeTreasury(oldTreasury.address)).to.be.reverted;
     });
   });
 });
