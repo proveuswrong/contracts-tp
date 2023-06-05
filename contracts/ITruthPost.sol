@@ -21,10 +21,10 @@ abstract contract ITruthPost {
     uint256 public treasuryBalance;
     uint256 public constant NUMBER_OF_RULING_OPTIONS = 2;
     uint256 public constant MULTIPLIER_DENOMINATOR = 1024; // Denominator for multipliers.
-    uint256 public constant LOSER_APPEAL_PERIOD_MULTIPLIER = 512; // Multiplier of the appeal period for losers (any other ruling options) in basis points. The loser is given less time to fund its appeal to defend against last minute appeal funding attacks.
-    uint256 public immutable ARTICLE_WITHDRAWAL_TIMELOCK; // To prevent authors to act fast and escape punishment.
-    uint256 public immutable WINNER_STAKE_MULTIPLIER; // Multiplier of the arbitration cost that the winner has to pay as fee stake for a round in basis points.
-    uint256 public immutable LOSER_STAKE_MULTIPLIER; // Multiplier of the arbitration cost that the loser has to pay as fee stake for a round in basis points.
+    uint256 public LOSER_APPEAL_PERIOD_MULTIPLIER = 512; // Multiplier of the appeal period for losers (any other ruling options) in basis points. The loser is given less time to fund its appeal to defend against last minute appeal funding attacks.
+    uint256 public ARTICLE_WITHDRAWAL_TIMELOCK; // To prevent authors to act fast and escape punishment.
+    uint256 public WINNER_STAKE_MULTIPLIER; // Multiplier of the arbitration cost that the winner has to pay as fee stake for a round in basis points.
+    uint256 public LOSER_STAKE_MULTIPLIER; // Multiplier of the arbitration cost that the loser has to pay as fee stake for a round in basis points.
     uint256 public challengeTaxRate = 16;
 
     constructor(
@@ -60,6 +60,16 @@ abstract contract ITruthPost {
         uint256 reward
     );
     event RulingFunded(uint256 indexed disputeId, uint256 indexed round, RulingOptions indexed ruling);
+    event OwnershipTransfer(address indexed _newOwner);
+    event AdminUpdate(address indexed _newAdmin);
+    event WinnerStakeMultiplierUpdate(uint256 indexed _newWinnerStakeMultiplier);
+    event LoserStakeMultiplierUpdate(uint256 indexed _newLoserStakeMultiplier);
+    event LoserAppealPeriodMultiplierUpdate(uint256 indexed _newLoserAppealPeriodMultiplier);
+    event ArticleWithdrawalTimelockUpdate(uint256 indexed _newWithdrawalTimelock);
+    event ChallengeTaxRateUpdate(uint256 indexed _newTaxRate);
+    event TreasuryUpdate(address indexed _newTreasury);
+    event TreasuryBalanceUpdate(uint256 indexed _byAmount);
+
 
     /// @notice Submit an evidence.
     /// @param _disputeID The dispute ID as in arbitrator.
@@ -109,6 +119,28 @@ abstract contract ITruthPost {
     /// @param _articleStorageAddress The address of article in the storage.
     /// @param _newOwner The new owner of the article which resides in the storage address, provided by the previous parameter.
     function transferOwnership(uint80 _articleStorageAddress, address payable _newOwner) external virtual;
+
+    /** @notice Update the arbitration cost for the winner.
+        @dev Sets the multiplier of the arbitration cost that the winner has to pay as fee stake to a new value. Emits WinnerStakeMultiplierUpdate.
+        @param _newWinnerStakeMultiplier The new value of WINNER_STAKE_MULTIPLIER.
+    */
+    function changeWinnerStakeMultiplier(uint256 _newWinnerStakeMultiplier) external virtual;
+
+    /// @notice Update the arbitration cost for the loser.
+    /// @dev Sets the multiplier of the arbitration cost that the loser has to pay as fee stake to a new value. Emits LoserStakeMultiplierUpdate.
+    /// @param _newLoserStakeMultiplier The new value of LOSER_STAKE_MULTIPLIER.
+    
+    function changeLoserStakeMultiplier(uint256 _newLoserStakeMultiplier) external virtual;
+
+    /// @notice Update the appeal window for the loser.
+    /// @dev Sets the multiplier of the appeal window for the loser to a new value. Emits LoserAppealPeriodMultiplierUpdate.
+    /// @param _newLoserAppealPeriodMultiplier The new value of LOSER_APPEAL_PERIOD_MULTIPLIER.
+    function changeLoserAppealPeriodMultiplier(uint256 _newLoserAppealPeriodMultiplier) external virtual;
+
+    /// @notice Update the timelock for the article withdtrawal.
+    /// @dev Sets the timelock before an author can initiate the withdrawal of an article to a new value. Emits LoserAppealPeriodMultiplierUpdate.
+    /// @param _newArticleWithdrawalTimelock The new value of ARTICLE_WITHDRAWAL_TIMELOCK.
+    function changeArticleWithdrawalTimelock(uint256 _newArticleWithdrawalTimelock) external virtual;
 
     /// @notice Find a vacant storage slot for an article.
     /// @dev Helper function to find a vacant slot for article. Use this function before calling initialize to minimize your gas cost.

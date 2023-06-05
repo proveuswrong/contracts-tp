@@ -375,6 +375,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
         uint256 amount = treasuryBalance;
         treasuryBalance = 0;
         TREASURY.send(amount);
+        emit TreasuryBalanceUpdate(amount);
     }
 
     /// @inheritdoc ITruthPost
@@ -387,6 +388,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     /// @param  _newAdmin The address of the new administrator.
     function changeAdmin(address payable _newAdmin) external onlyAdmin {
         admin = _newAdmin;
+        emit AdminUpdate(_newAdmin);
     }
 
     /// @notice Changes the treasury address of the contract to a new address.
@@ -394,7 +396,33 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     /// @param  _newTreasury The address of the new treasury.
     function changeTreasury(address payable _newTreasury) external onlyAdmin {
         TREASURY = _newTreasury;
+        emit TreasuryUpdate(_newTreasury);
     }
+
+    /// @inheritdoc ITruthPost
+    function changeWinnerStakeMultiplier(uint256 _newWinnerStakeMultiplier) external override onlyAdmin {
+        WINNER_STAKE_MULTIPLIER = _newWinnerStakeMultiplier;
+        emit WinnerStakeMultiplierUpdate(_newWinnerStakeMultiplier);
+    }
+
+    /// @inheritdoc ITruthPost
+    function changeLoserStakeMultiplier(uint256 _newLoserStakeMultiplier) external override onlyAdmin {
+        LOSER_STAKE_MULTIPLIER = _newLoserStakeMultiplier;
+        emit LoserStakeMultiplierUpdate(_newLoserStakeMultiplier);
+    }
+
+    /// @inheritdoc ITruthPost
+    function changeLoserAppealPeriodMultiplier(uint256 _newLoserAppealPeriodMultiplier) external override onlyAdmin {
+        LOSER_APPEAL_PERIOD_MULTIPLIER = _newLoserAppealPeriodMultiplier;
+        emit LoserAppealPeriodMultiplierUpdate(_newLoserAppealPeriodMultiplier);
+    }
+    
+    /// @inheritdoc ITruthPost
+    function changeArticleWithdrawalTimelock(uint256 _newArticleWithdrawalTimelock) external override onlyAdmin {
+        ARTICLE_WITHDRAWAL_TIMELOCK = _newArticleWithdrawalTimelock;
+        emit ArticleWithdrawalTimelockUpdate(_newArticleWithdrawalTimelock);
+    }
+
 
     /// @notice Initialize a category.
     /// @param _metaevidenceIpfsUri IPFS content identifier for metaevidence.
@@ -412,6 +440,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
         Article storage article = articleStorage[_articleStorageAddress];
         require(msg.sender == article.owner, "Only author can transfer ownership.");
         article.owner = _newOwner;
+        emit OwnershipTransfer(_newOwner);
     }
 
     /// @inheritdoc ITruthPost
