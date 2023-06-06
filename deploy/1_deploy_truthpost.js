@@ -28,7 +28,7 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
         question: "Is this article accurate according to the policy of this curation pool?",
         rulingOptions: {
             type: "single-select",
-            titles: ["Yes", "No"],
+            titles: ["Accurate", "Inaccurate"],
         },
         // evidenceDisplayInterfaceURI: "/ipfs/QmSaac2Xh2LCxKWoekmbWG2z2vM4DGjZmbcRhXqUkQpd3h/index.html",
         dynamicScriptURI: "/ipfs/QmaMdkAG4CL6ZWWAbJGeHdMGBbHQJM1hmA7gthq9aqYSRC/index.js\n",
