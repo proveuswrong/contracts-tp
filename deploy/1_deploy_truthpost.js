@@ -31,11 +31,11 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
             titles: ["Accurate", "Inaccurate"],
         },
         // evidenceDisplayInterfaceURI: "/ipfs/QmSaac2Xh2LCxKWoekmbWG2z2vM4DGjZmbcRhXqUkQpd3h/index.html",
-        dynamicScriptURI: "/ipfs/QmaMdkAG4CL6ZWWAbJGeHdMGBbHQJM1hmA7gthq9aqYSRC/index.js\n",
+        dynamicScriptURI: "/ipfs/QmaMdkAG4CL6ZWWAbJGeHdMGBbHQJM1hmA7gthq9aqYSRC/index.js",
         fileURI: `${primaryDocumentIPFSPath}`,
         arbitrableChainID: chainId,
         arbitratorChainID: chainId,
-        evidenceDisplayInterfaceRequiredParams: ["disputeID", "arbitrableChainID"],
+        // evidenceDisplayInterfaceRequiredParams: ["disputeID", "arbitrableChainID"],
         dynamicScriptRequiredParams: ["disputeID", "arbitrableChainID", "arbitrableContractAddress"],
 
         _v: "1.0.0",
@@ -69,7 +69,8 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
 
     const contractInstance = deploy(contractName, {
         from: deployer,
-        gasLimit: 4000000,
+        gasLimit: 6000000,
+        nonce: 24,
         args: [
             KLEROS[chainId],
             generateArbitratorExtraData(SUBCOURT, NUMBER_OF_VOTES),
@@ -81,9 +82,7 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId, getUnnamedA
         ],
     })
     console.log("Tx sent. Waiting for confirmation.")
-
     const deployment = await contractInstance
-
     console.log(`Going to try verifying the source code on Etherscan in ${sleepDuration / 1000} seconds.`)
 
     await new Promise((resolve) => setTimeout(resolve, sleepDuration))
