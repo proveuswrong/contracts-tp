@@ -31,7 +31,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
         RulingOptions outcome;
         uint8 articleCategory;
         bool resolved; // To remove dependency to disputeStatus function of arbitrator. This function is likely to be removed in Kleros v2.
-        uint80 articleStorageAddress; // 2^16 is sufficient. Just using extra available space.
+        uint72 articleStorageAddress; // 2^16 is sufficient. Just using extra available space.
         Round[] rounds; // Tracks each appeal round of a dispute.
     }
 
@@ -51,7 +51,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
 
     bytes[64] public categoryToArbitratorExtraData;
 
-    mapping(uint80 => Article) public articleStorage; // Key: Storage address of article. Articles are not addressed with their identifiers, to enable reusing a storage slot.
+    mapping(uint72 => Article) public articleStorage; // Key: Storage address of article. Articles are not addressed with their identifiers, to enable reusing a storage slot.
     mapping(uint256 => DisputeData) public disputes; // Key: Dispute ID as in arbitrator.
 
     constructor(
@@ -71,7 +71,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     function initializeArticle(
         string calldata _articleID,
         uint8 _category,
-        uint80 _searchPointer
+        uint72 _searchPointer
     ) external payable override {
         require(_category < categoryCounter, "This category does not exist");
 
@@ -100,7 +100,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     }
 
     /// @inheritdoc ITruthPost
-    function increaseBounty(uint80 _articleStorageAddress) external payable override {
+    function increaseBounty(uint72 _articleStorageAddress) external payable override {
         Article storage article = articleStorage[_articleStorageAddress];
         require(msg.sender == article.owner, "Only author can increase bounty of an article.");
         // To prevent mistakes.
@@ -114,7 +114,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     }
 
     /// @inheritdoc ITruthPost
-    function initiateWithdrawal(uint80 _articleStorageAddress) external override {
+    function initiateWithdrawal(uint72 _articleStorageAddress) external override {
         Article storage article = articleStorage[_articleStorageAddress];
         require(msg.sender == article.owner, "Only author can withdraw an article.");
         require(article.withdrawalPermittedAt == 0, "Withdrawal already initiated or there is a challenge.");
@@ -124,7 +124,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     }
 
     /// @inheritdoc ITruthPost
-    function withdraw(uint80 _articleStorageAddress) external override {
+    function withdraw(uint72 _articleStorageAddress) external override {
         Article storage article = articleStorage[_articleStorageAddress];
 
         require(msg.sender == article.owner, "Only author can withdraw an article.");
@@ -144,7 +144,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     }
 
     /// @inheritdoc ITruthPost
-    function challenge(uint80 _articleStorageAddress) external payable override {
+    function challenge(uint72 _articleStorageAddress) external payable override {
         Article storage article = articleStorage[_articleStorageAddress];
         require(article.bountyAmount > 0, "Nothing to challenge.");
         require(article.withdrawalPermittedAt != type(uint32).max, "There is an ongoing challenge.");
@@ -164,7 +164,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
 
         disputes[disputeID].challenger = payable(msg.sender);
         disputes[disputeID].rounds.push();
-        disputes[disputeID].articleStorageAddress = uint80(_articleStorageAddress);
+        disputes[disputeID].articleStorageAddress = uint72(_articleStorageAddress);
         disputes[disputeID].articleCategory = article.category;
 
         // Evidence group ID is dispute ID.
@@ -275,7 +275,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
         RulingOptions actualRuling = wonByDefault != RulingOptions.Tied ? wonByDefault : RulingOptions(_ruling);
         dispute.outcome = actualRuling;
 
-        uint80 articleStorageAddress = dispute.articleStorageAddress;
+        uint72 articleStorageAddress = dispute.articleStorageAddress;
 
         Article storage article = articleStorage[articleStorageAddress];
 
@@ -418,13 +418,12 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
         LOSER_APPEAL_PERIOD_MULTIPLIER = _newLoserAppealPeriodMultiplier;
         emit LoserAppealPeriodMultiplierUpdate(_newLoserAppealPeriodMultiplier);
     }
-    
+
     /// @inheritdoc ITruthPost
     function changeArticleWithdrawalTimelock(uint256 _newArticleWithdrawalTimelock) external override onlyAdmin {
         ARTICLE_WITHDRAWAL_TIMELOCK = _newArticleWithdrawalTimelock;
         emit ArticleWithdrawalTimelockUpdate(_newArticleWithdrawalTimelock);
     }
-
 
     /// @notice Initialize a category.
     /// @param _metaevidenceIpfsUri IPFS content identifier for metaevidence.
@@ -438,7 +437,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     }
 
     /// @inheritdoc ITruthPost
-    function transferOwnership(uint80 _articleStorageAddress, address payable _newOwner) external override {
+    function transferOwnership(uint72 _articleStorageAddress, address payable _newOwner) external override {
         Article storage article = articleStorage[_articleStorageAddress];
         require(msg.sender == article.owner, "Only author can transfer ownership.");
         article.owner = _newOwner;
@@ -446,7 +445,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     }
 
     /// @inheritdoc ITruthPost
-    function challengeFee(uint80 _articleStorageAddress) public view override returns (uint256) {
+    function challengeFee(uint72 _articleStorageAddress) public view override returns (uint256) {
         Article storage article = articleStorage[_articleStorageAddress];
 
         uint256 arbitrationFee = ARBITRATOR.arbitrationCost(categoryToArbitratorExtraData[article.category]);
@@ -463,7 +462,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
     }
 
     /// @inheritdoc ITruthPost
-    function findVacantStorageSlot(uint80 _searchPointer) external view override returns (uint256 vacantSlotIndex) {
+    function findVacantStorageSlot(uint72 _searchPointer) external view override returns (uint256 vacantSlotIndex) {
         Article storage article;
         do {
             article = articleStorage[_searchPointer++];
@@ -603,5 +602,4 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
 
         return totalCost - raisedSoFar;
     }
-
 }
