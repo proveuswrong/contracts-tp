@@ -70,7 +70,6 @@ abstract contract ITruthPost {
     event TreasuryUpdate(address indexed _newTreasury);
     event TreasuryBalanceUpdate(uint256 indexed _byAmount);
 
-
     /// @notice Submit an evidence.
     /// @param _disputeID The dispute ID as in arbitrator.
     /// @param _evidenceURI IPFS path to evidence, example: '/ipfs/Qmarwkf7C9RuzDEJNnarT3WZ7kem5bk8DZAzx78acJjMFH/evidence.json'
@@ -91,48 +90,48 @@ abstract contract ITruthPost {
     function initializeArticle(
         string calldata _articleID,
         uint8 _category,
-        uint80 _searchPointer
+        uint72 _searchPointer
     ) external payable virtual;
 
     /// @notice Increase bounty.
     /// @dev Lets author to increase a bounty of a live article. Emits BalanceUpdate.
     /// @param _articleStorageAddress The address of the article in the storage.
-    function increaseBounty(uint80 _articleStorageAddress) external payable virtual;
+    function increaseBounty(uint72 _articleStorageAddress) external payable virtual;
 
     /// @notice Initiate unpublishing process.
     /// @dev Lets an author to start unpublishing process. Emits TimelockStarted.
     /// @param _articleStorageAddress The address of the article in the storage.
-    function initiateWithdrawal(uint80 _articleStorageAddress) external virtual;
+    function initiateWithdrawal(uint72 _articleStorageAddress) external virtual;
 
     /// @notice Execute unpublishing.
     /// @dev Executes unpublishing of an article. Emits Withdrew.
     /// @param _articleStorageAddress The address of the article in the storage.
-    function withdraw(uint80 _articleStorageAddress) external virtual;
+    function withdraw(uint72 _articleStorageAddress) external virtual;
 
     /// @notice Challenge article.
     /// @dev Challenges the article at the given storage address. Emits Challenge.
     /// @param _articleStorageAddress The address of the article in the storage.
-    function challenge(uint80 _articleStorageAddress) external payable virtual;
+    function challenge(uint72 _articleStorageAddress) external payable virtual;
 
     /// @notice Transfer ownership of an article.
-    /// @dev Lets you to transfer ownership of an article. 
-    ///      This is useful when you want to change owner account without withdrawing and resubmitting. 
+    /// @dev Lets you to transfer ownership of an article.
+    ///      This is useful when you want to change owner account without withdrawing and resubmitting.
     ///      Emits OwnershipTransfer.
     /// @param _articleStorageAddress The address of article in the storage.
     /// @param _newOwner The new owner of the article which resides in the storage address, provided by the previous parameter.
-    function transferOwnership(uint80 _articleStorageAddress, address payable _newOwner) external virtual;
+    function transferOwnership(uint72 _articleStorageAddress, address payable _newOwner) external virtual;
 
     /// @notice Update the arbitration cost for the winner.
-    /// @dev Sets the multiplier of the arbitration cost that the winner has to pay as fee stake to a new value. 
+    /// @dev Sets the multiplier of the arbitration cost that the winner has to pay as fee stake to a new value.
     ///      Emits WinnerStakeMultiplierUpdate.
     /// @param _newWinnerStakeMultiplier The new value of WINNER_STAKE_MULTIPLIER.
     function changeWinnerStakeMultiplier(uint256 _newWinnerStakeMultiplier) external virtual;
 
     /// @notice Update the arbitration cost for the loser.
-    /// @dev Sets the multiplier of the arbitration cost that the loser has to pay as fee stake to a new value. 
+    /// @dev Sets the multiplier of the arbitration cost that the loser has to pay as fee stake to a new value.
     ///      Emits LoserStakeMultiplierUpdate.
     /// @param _newLoserStakeMultiplier The new value of LOSER_STAKE_MULTIPLIER.
-    
+
     function changeLoserStakeMultiplier(uint256 _newLoserStakeMultiplier) external virtual;
 
     /// @notice Update the appeal window for the loser.
@@ -141,7 +140,7 @@ abstract contract ITruthPost {
     function changeLoserAppealPeriodMultiplier(uint256 _newLoserAppealPeriodMultiplier) external virtual;
 
     /// @notice Update the timelock for the article withdtrawal.
-    /// @dev Sets the timelock before an author can initiate the withdrawal of an article to a new value. 
+    /// @dev Sets the timelock before an author can initiate the withdrawal of an article to a new value.
     ///      Emits ArticleWithdrawalTimelockUpdate.
     /// @param _newArticleWithdrawalTimelock The new value of ARTICLE_WITHDRAWAL_TIMELOCK.
     function changeArticleWithdrawalTimelock(uint256 _newArticleWithdrawalTimelock) external virtual;
@@ -149,12 +148,12 @@ abstract contract ITruthPost {
     /// @notice Find a vacant storage slot for an article.
     /// @dev Helper function to find a vacant slot for article. Use this function before calling initialize to minimize your gas cost.
     /// @param _searchPointer Starting point of the search. If you do not have a guess, just pass 0.
-    function findVacantStorageSlot(uint80 _searchPointer) external view virtual returns (uint256 vacantSlotIndex);
+    function findVacantStorageSlot(uint72 _searchPointer) external view virtual returns (uint256 vacantSlotIndex);
 
     /// @notice Get required challenge fee.
     /// @dev Returns the total amount needs to be paid to challenge an article, including taxes if any.
     /// @param _articleStorageAddress The address of article in the storage.
-    function challengeFee(uint80 _articleStorageAddress) public view virtual returns (uint256 challengeFee);
+    function challengeFee(uint72 _articleStorageAddress) public view virtual returns (uint256 challengeFee);
 
     /// @notice Get required appeal fee and deposit.
     /// @dev Returns the total amount needs to be paid to appeal a dispute, including fees and stake deposit.

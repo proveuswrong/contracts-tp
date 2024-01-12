@@ -453,9 +453,9 @@
     {
       "inputs": [
         {
-          "internalType": "uint80",
+          "internalType": "uint72",
           "name": "_articleStorageAddress",
-          "type": "uint80"
+          "type": "uint72"
         }
       ],
       "name": "challenge",
@@ -466,9 +466,9 @@
     {
       "inputs": [
         {
-          "internalType": "uint80",
+          "internalType": "uint72",
           "name": "_articleStorageAddress",
-          "type": "uint80"
+          "type": "uint72"
         }
       ],
       "name": "challengeFee",
@@ -550,9 +550,9 @@
     {
       "inputs": [
         {
-          "internalType": "uint80",
+          "internalType": "uint72",
           "name": "_searchPointer",
-          "type": "uint80"
+          "type": "uint72"
         }
       ],
       "name": "findVacantStorageSlot",
@@ -752,9 +752,9 @@
     {
       "inputs": [
         {
-          "internalType": "uint80",
+          "internalType": "uint72",
           "name": "_articleStorageAddress",
-          "type": "uint80"
+          "type": "uint72"
         }
       ],
       "name": "increaseBounty",
@@ -775,9 +775,9 @@
           "type": "uint8"
         },
         {
-          "internalType": "uint80",
+          "internalType": "uint72",
           "name": "_searchPointer",
-          "type": "uint80"
+          "type": "uint72"
         }
       ],
       "name": "initializeArticle",
@@ -788,9 +788,9 @@
     {
       "inputs": [
         {
-          "internalType": "uint80",
+          "internalType": "uint72",
           "name": "_articleStorageAddress",
-          "type": "uint80"
+          "type": "uint72"
         }
       ],
       "name": "initiateWithdrawal",
@@ -826,9 +826,9 @@
     {
       "inputs": [
         {
-          "internalType": "uint80",
+          "internalType": "uint72",
           "name": "_articleStorageAddress",
-          "type": "uint80"
+          "type": "uint72"
         },
         {
           "internalType": "address payable",
@@ -857,9 +857,9 @@
     {
       "inputs": [
         {
-          "internalType": "uint80",
+          "internalType": "uint72",
           "name": "_articleStorageAddress",
-          "type": "uint80"
+          "type": "uint72"
         }
       ],
       "name": "withdraw",
