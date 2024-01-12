@@ -1,8 +1,8 @@
-# Smart Contracts of Prove Me Wrong
+# Smart Contracts of Truth Post
 
 Decentralized curation of truth, utilizing Kleros for decentralized fact-checking.
 
-Or in other words: Create a claim, put a bounty, invite others to prove you wrong. 
+Or in other words: Create a news post, put a bounty, invite others to prove you wrong. 
 
 Potential usecases: 
 - Curated news: you can write news article that are provably not fake
