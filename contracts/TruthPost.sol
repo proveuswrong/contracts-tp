@@ -268,7 +268,7 @@ contract TruthPost is ITruthPost, IArbitrable, IEvidence {
         RulingOptions wonByDefault;
         if (lastRound.hasPaid[uint256(RulingOptions.ChallengeFailed)]) {
             wonByDefault = RulingOptions.ChallengeFailed;
-        } else if (lastRound.hasPaid[uint256(RulingOptions.ChallengeFailed)]) {
+        } else if (lastRound.hasPaid[uint256(RulingOptions.Debunked)]) {
             wonByDefault = RulingOptions.Debunked;
         }
 

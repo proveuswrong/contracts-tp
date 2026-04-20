@@ -216,6 +216,43 @@ describe("The Truth Post", () => {
         .withArgs(ARTICLE_ADDRESS);
     });
 
+    // Regression test for the appeal-default bug: when only the challenger
+    // (Debunked side) funds the appeal after the arbitrator initially ruled
+    // ChallengeFailed, the one-sided-funding rule must make Debunked win.
+    it("Should let the challenger win by appeal-default when only Debunked is funded", async () => {
+      const vacantSlotIndex = await truthPost.findVacantStorageSlot(0);
+      const args = {
+        articleID: crypto.randomBytes(30).toString("hex"),
+        category: 0,
+        articleAddress: vacantSlotIndex,
+      };
+      await truthPost
+        .connect(author)
+        .initializeArticle(args.articleID, args.category, args.articleAddress, { value: TEN_ETH });
+
+      disputeCounter++;
+      const DISPUTE_ID = disputeCounter - 1;
+
+      const challengeFee = await truthPost.connect(deployer).challengeFee(args.articleAddress);
+      await truthPost.connect(challenger).challenge(args.articleAddress, { value: challengeFee });
+
+      await arbitrator.connect(deployer).giveRuling(DISPUTE_ID, RULING_OUTCOMES.ChallengeFailed, APPEAL_WINDOW);
+      await ethers.provider.send("evm_increaseTime", [10]);
+
+      const appealFee = await truthPost.connect(deployer).appealFee(DISPUTE_ID);
+      const LOSER_FUNDING = appealFee.add(appealFee.mul(LOSER_STAKE_MULTIPLIER).div(MULTIPLIER_DENOMINATOR));
+      await truthPost
+        .connect(challenger)
+        .fundAppeal(DISPUTE_ID, RULING_OUTCOMES.Debunked, { value: LOSER_FUNDING });
+
+      const { end } = await arbitrator.connect(deployer).appealPeriod(DISPUTE_ID);
+      await ethers.provider.send("evm_increaseTime", [end.toNumber()]);
+
+      await expect(arbitrator.connect(deployer).executeRuling(DISPUTE_ID))
+        .to.emit(truthPost, "Debunked")
+        .withArgs(args.articleAddress);
+    });
+
     it("Should validate difference b/w appeal periods of winner and loser sides", async () => {
       disputeCounter++;
       const DISPUTE_ID = disputeCounter - 1;
